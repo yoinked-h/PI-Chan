@@ -9,7 +9,11 @@ from discord.ext import commands
 from discord.ui import View, button
 from PIL import Image
 from collections import OrderedDict
-
+try:
+    import dotenv
+    dotenv.load_dotenv()
+except:
+    pass
 CONFIG = toml.load('config.toml')
 MONITORED_CHANNEL_IDS = CONFIG.get('MONITORED_CHANNEL_IDS', [])
 SCAN_LIMIT_BYTES = CONFIG.get('SCAN_LIMIT_BYTES', 35 * 1024**2)  # Default 35 MB
