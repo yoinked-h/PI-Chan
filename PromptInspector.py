@@ -1,24 +1,41 @@
 import io
 import os
-import toml
+import toml, json
 import asyncio
 import gzip
 
 from discord import Intents, Embed, ButtonStyle, Message, Attachment, File, RawReactionActionEvent, ApplicationContext
 from discord.ext import commands
 from discord.ui import View, button
-from dotenv import load_dotenv
 from PIL import Image
 from collections import OrderedDict
 
-load_dotenv()
 CONFIG = toml.load('config.toml')
 MONITORED_CHANNEL_IDS = CONFIG.get('MONITORED_CHANNEL_IDS', [])
-SCAN_LIMIT_BYTES = CONFIG.get('SCAN_LIMIT_BYTES', 10 * 1024**2)  # Default 10 MB
+SCAN_LIMIT_BYTES = CONFIG.get('SCAN_LIMIT_BYTES', 35 * 1024**2)  # Default 35 MB
 
 intents = Intents.default() | Intents.message_content | Intents.members
 client = commands.Bot(intents=intents)
 
+def comfyui_get_data(dat):
+    try:
+        aa = []
+        dat = json.loads(dat)
+        for key, value in dat.items():
+            # print(key, value)
+            if value['class_type'] == "CLIPTextEncode":
+                aa.append({"val": value['inputs']['text'],
+                        "type": "prompt"})
+            elif value['class_type'] == "CheckpointLoaderSimple":
+                aa.append({"val": value['inputs']['ckpt_name'],
+                        "type": "model"})
+            elif value['class_type'] == "LoraLoader":
+                aa.append({"val": value['inputs']['lora_name'],
+                        "type": "lora"})
+        return aa
+    except Exception as e:
+        print(e)
+        return []
 
 def get_params_from_string(param_str):
     output_dict = {}
@@ -33,7 +50,7 @@ def get_params_from_string(param_str):
     else:
         output_dict['Prompt'] = prompts
     if len(output_dict['Prompt']) > 1000:
-      output_dict['Prompt'] = output_dict['Prompt'][:1000] + '...'
+        output_dict['Prompt'] = output_dict['Prompt'][:1000] + '...'
     params = params.split(', ')
     for param in params:
         try:
@@ -193,12 +210,12 @@ class MyView(View):
         button.disabled = True
         await interaction.response.edit_message(view=self)
         if len(self.metadata) > 1980:
-          with io.StringIO() as f:
-            f.write(self.metadata)
-            f.seek(0)
-            await interaction.followup.send(file=File(f, "parameters.yaml"))
+            with io.StringIO() as f:
+                f.write(self.metadata)
+                f.seek(0)
+                await interaction.followup.send(file=File(f, "parameters.yaml"))
         else:
-          await interaction.followup.send(f"```yaml\n{self.metadata}```")
+            await interaction.followup.send(f"```yaml\n{self.metadata}```")
 
 
 async def read_attachment_metadata(i: int, attachment: Attachment, metadata: OrderedDict):
@@ -212,12 +229,12 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
             #     info = read_info_from_image_stealth(img)
 
             if img.info:
-              if 'parameters' in img.info:
-                info = img.info['parameters']
-              elif 'prompt' in img.info:
-                info = img.info['prompt']
-              elif img.info['Software'] == 'NovelAI':
-                info = img.info["Description"] + img.info["Comment"]
+                if 'parameters' in img.info:
+                    info = img.info['parameters']
+                elif 'prompt' in img.info:
+                    info = img.info['prompt']
+                elif img.info['Software'] == 'NovelAI':
+                    info = img.info["Description"] + img.info["Comment"]
             else:
                 info = read_info_from_image_stealth(img)
                 
@@ -249,22 +266,24 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
         try:
 
             if 'Steps:' in data:
-              params = get_params_from_string(data)
-              embed = get_embed(params, message)
-              embed.set_image(url=attachment.url)
-              custom_view = MyView()
-              custom_view.metadata = data
-              await user_dm.send(view=custom_view, embed=embed, mention_author=False)
+                params = get_params_from_string(data)
+                embed = get_embed(params, message)
+                embed.set_image(url=attachment.url)
+                custom_view = MyView()
+                custom_view.metadata = data
+                await user_dm.send(view=custom_view, embed=embed, mention_author=False)
             else :
-              img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
-              embed = Embed(title=img_type+" Parameters", color=message.author.color)
-              embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
-              embed.set_image(url=attachment.url)
-              await user_dm.send(embed=embed, mention_author=False)
-              with io.StringIO() as f:
-                f.write(data)
-                f.seek(0)
-                await user_dm.send(file=File(f, "parameters.yaml"))
+                img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
+                embed = Embed(title=img_type+" Parameters", color=message.author.color)
+                for enum, dax in enumerate(comfyui_get_data(data)):
+                    embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=False)
+                embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
+                embed.set_image(url=attachment.url)
+                await user_dm.send(embed=embed, mention_author=False)
+                with io.StringIO() as f:
+                    f.write(data)
+                    f.seek(0)
+                    await user_dm.send(file=File(f, "parameters.json"))
         
         except:
             pass
