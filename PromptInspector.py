@@ -319,8 +319,8 @@ async def message_command(ctx: ApplicationContext, message: Message):
             f.write(response)
             f.seek(0)
             await ctx.respond(file=File(f, "parameters.yaml"), ephemeral=True)
-@client.message_command(name="View RAW Parameters/Prompt")
-async def message_command(ctx: ApplicationContext, message: Message):
+@client.message_command(name="View Parameters/Prompt")
+async def dddddd(ctx: ApplicationContext, message: Message):
     """Get a formatted list of parameters for every image in this post."""
     attachments = [a for a in message.attachments if a.filename.lower().endswith(".png")]
     if not attachments:
