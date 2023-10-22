@@ -343,7 +343,7 @@ async def dddddd(ctx: ApplicationContext, message: Message):
                 embed.set_image(url=attachment.url)
                 custom_view = MyView()
                 custom_view.metadata = data
-                await user_dm.send(view=custom_view, embed=embed, mention_author=False)
+                await ctx.respond(view=custom_view, embed=embed, mention_author=False)
             else :
                 img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
                 embed = Embed(title=img_type+" Parameters", color=message.author.color)
@@ -351,11 +351,10 @@ async def dddddd(ctx: ApplicationContext, message: Message):
                     embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=False)
                 embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
                 embed.set_image(url=attachment.url)
-                await user_dm.send(embed=embed, mention_author=False)
                 with io.StringIO() as f:
                     f.write(data)
                     f.seek(0)
-                    await user_dm.send(file=File(f, "parameters.json"))
+                    await ctx.respond(embed=embed, mention_author=False, file=File(f, "parameters.json"))
         
         except:
             pass
