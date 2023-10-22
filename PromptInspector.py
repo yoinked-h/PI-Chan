@@ -3,7 +3,7 @@ import os
 import toml, json
 import asyncio
 import gzip
-
+import gradio_client
 from discord import Intents, Embed, ButtonStyle, Message, Attachment, File, RawReactionActionEvent, ApplicationContext
 from discord.ext import commands
 from discord.ui import View, button
@@ -17,7 +17,7 @@ except:
 CONFIG = toml.load('config.toml')
 MONITORED_CHANNEL_IDS = CONFIG.get('MONITORED_CHANNEL_IDS', [])
 SCAN_LIMIT_BYTES = CONFIG.get('SCAN_LIMIT_BYTES', 35 * 1024**2)  # Default 35 MB
-
+GRADCL = gradio_client.Client("https://yoinked-da-nsfw-checker.hf.space/")
 intents = Intents.default() | Intents.message_content | Intents.members
 client = commands.Bot(intents=intents)
 
@@ -251,7 +251,7 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
 @client.event
 async def on_raw_reaction_add(ctx: RawReactionActionEvent):
     """Send image metadata in reacted post to user DMs"""
-    if ctx.emoji.name != '🔎' or ctx.channel_id not in MONITORED_CHANNEL_IDS or ctx.member.bot:
+    if ctx.emoji.name not in ['🔎', '🔍'] or ctx.channel_id not in MONITORED_CHANNEL_IDS or ctx.member.bot:
         return
     channel = client.get_channel(ctx.channel_id)
     message = await channel.fetch_message(ctx.message_id)
@@ -259,6 +259,10 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
         return
     attachments = [a for a in message.attachments if a.filename.lower().endswith(".png")]
     if not attachments:
+        return
+    if ctx.emoji.name == '🔍':
+        user_dm = await client.get_user(ctx.user_id).create_dm()
+        await user_dm.send(embed=Embed(title="Predicted Prompt", color=message.author.color, description=GRADCL.predict(attachments[0].url, "chen-vit", 0.4, True, True, api_name="/classify")[1]).set_image(url=attachments[0].url))
         return
     metadata = OrderedDict()
     tasks = [read_attachment_metadata(i, attachment, metadata) for i, attachment in enumerate(attachments)]
