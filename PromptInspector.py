@@ -251,7 +251,7 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
 @client.event
 async def on_raw_reaction_add(ctx: RawReactionActionEvent):
     """Send image metadata in reacted post to user DMs"""
-    if ctx.emoji.name not in ['🔎', '🔍'] or ctx.channel_id not in MONITORED_CHANNEL_IDS or ctx.member.bot:
+    if ctx.emoji.name not in ['🔎', '❔'] or ctx.channel_id not in MONITORED_CHANNEL_IDS or ctx.member.bot:
         return
     channel = client.get_channel(ctx.channel_id)
     message = await channel.fetch_message(ctx.message_id)
@@ -260,7 +260,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
     attachments = [a for a in message.attachments if a.filename.lower().endswith(".png")]
     if not attachments:
         return
-    if ctx.emoji.name == '🔍':
+    if ctx.emoji.name == '❔':
         user_dm = await client.get_user(ctx.user_id).create_dm()
         await user_dm.send(embed=Embed(title="Predicted Prompt", color=message.author.color, description=GRADCL.predict(attachments[0].url, "chen-vit", 0.4, True, True, api_name="/classify")[1]).set_image(url=attachments[0].url))
         return
@@ -297,7 +297,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
             pass
 
 
-@client.message_command(name="View Parameters/Prompt")
+@client.message_command(name="View RAW Parameters/Prompt")
 async def message_command(ctx: ApplicationContext, message: Message):
     """Get raw list of parameters for every image in this post."""
     attachments = [a for a in message.attachments if a.filename.lower().endswith(".png")]
@@ -319,6 +319,46 @@ async def message_command(ctx: ApplicationContext, message: Message):
             f.write(response)
             f.seek(0)
             await ctx.respond(file=File(f, "parameters.yaml"), ephemeral=True)
+@client.message_command(name="View RAW Parameters/Prompt")
+async def message_command(ctx: ApplicationContext, message: Message):
+    """Get a formatted list of parameters for every image in this post."""
+    attachments = [a for a in message.attachments if a.filename.lower().endswith(".png")]
+    if not attachments:
+        await ctx.respond("This post contains no matching images.", ephemeral=True)
+        return
+    await ctx.defer(ephemeral=True)
+    metadata = OrderedDict()
+    tasks = [read_attachment_metadata(i, attachment, metadata) for i, attachment in enumerate(attachments)]
+    await asyncio.gather(*tasks)
+    if not metadata:
+        await ctx.respond(f"This post contains no image generation data.\n{message.author.mention} needs to install [this extension](<https://github.com/ashen-sensored/sd_webui_stealth_pnginfo>).", ephemeral=True)
+        return
+    user_dm = await client.get_user(ctx.user.id).create_dm()
+    for attachment, data in [(attachments[i], data) for i, data in metadata.items()]:
+        try:
+
+            if 'Steps:' in data:
+                params = get_params_from_string(data)
+                embed = get_embed(params, message)
+                embed.set_image(url=attachment.url)
+                custom_view = MyView()
+                custom_view.metadata = data
+                await user_dm.send(view=custom_view, embed=embed, mention_author=False)
+            else :
+                img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
+                embed = Embed(title=img_type+" Parameters", color=message.author.color)
+                for enum, dax in enumerate(comfyui_get_data(data)):
+                    embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=False)
+                embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
+                embed.set_image(url=attachment.url)
+                await user_dm.send(embed=embed, mention_author=False)
+                with io.StringIO() as f:
+                    f.write(data)
+                    f.seek(0)
+                    await user_dm.send(file=File(f, "parameters.json"))
+        
+        except:
+            pass
 
 
 client.run(os.environ["BOT_TOKEN"])
