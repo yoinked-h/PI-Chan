@@ -1,0 +1,10 @@
+# ignore python cache
+__pycache__/
+*.py[cblm]
+# ignore .vscode
+.vscode/
+# ignore ps1/shell scripts
+*.ps1
+*.sh
+*.cmd
+*.bat
