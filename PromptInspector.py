@@ -10,7 +10,7 @@ from discord.ui import View, button
 from PIL import Image
 from collections import OrderedDict
 try:
-    import dotenv # type: ignore
+    import dotenv
     dotenv.load_dotenv()
 except:
     pass
@@ -221,26 +221,31 @@ class MyView(View):
         else:
             await interaction.followup.send(f"```yaml\n{self.metadata}```")
 
-async def read_attachment_metadata(idx: int, attachment: Attachment, metadata: OrderedDict):
+
+async def read_attachment_metadata(i: int, attachment: Attachment, metadata: OrderedDict):
     """Allows downloading in bulk"""
     try:
         image_data = await attachment.read()
         with Image.open(io.BytesIO(image_data)) as img:
-            try:
+            # try:
+            #     info = img.info['parameters']
+            # except:
+            #     info = read_info_from_image_stealth(img)
+
+            if img.info:
                 if 'parameters' in img.info:
                     info = img.info['parameters']
                 elif 'prompt' in img.info:
                     info = img.info['prompt']
                 elif img.info['Software'] == 'NovelAI':
                     info = img.info["Description"] + img.info["Comment"]
-                else: 
-                    raise Exception # this image does not have parameters
-            except Exception:
+            else:
                 info = read_info_from_image_stealth(img)
-            if info and "Steps" in info:
-                metadata[idx] = info
-    except Exception as e:
-        print(f"{type(e).__name__}: {e}")
+                
+            if info:
+                metadata[i] = info
+    except Exception as error:
+        print(f"{type(error).__name__}: {error}")
 
 
 @client.event
@@ -257,13 +262,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
         return
     if ctx.emoji.name == '❔':
         user_dm = await client.get_user(ctx.user_id).create_dm()
-        await user_dm.send(embed=Embed(
-            title="Predicted Prompt", 
-            color=message.author.color, 
-            description=GRADCL.predict(
-                attachments[0].url, "chen-vit", 0.4, True, True, api_name="/classify"
-                )[1].replace(",", " ") #hot take, commas arent needed
-            ).set_image(url=attachments[0].url))
+        await user_dm.send(embed=Embed(title="Predicted Prompt", color=message.author.color, description=GRADCL.predict(attachments[0].url, "chen-vit", 0.4, True, True, api_name="/classify")[1]).set_image(url=attachments[0].url))
         return
     metadata = OrderedDict()
     tasks = [read_attachment_metadata(i, attachment, metadata) for i, attachment in enumerate(attachments)]
