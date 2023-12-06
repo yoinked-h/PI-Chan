@@ -215,7 +215,8 @@ class MyView(View):
         await interaction.response.edit_message(view=self)
         if len(self.metadata) > 1980:
             with io.StringIO() as f:
-                f.write(self.metadata)
+                indented = json.dumps(json.loads(self.metadata), sort_keys=True, indent=2)
+                f.write(indented)
                 f.seek(0)
                 await interaction.followup.send(file=File(f, "parameters.yaml"))
         else:
@@ -289,7 +290,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                 embed.set_image(url=attachment.url)
                 await user_dm.send(embed=embed, mention_author=False)
                 with io.StringIO() as f:
-                    f.write(data)
+                    indented = json.dumps(json.loads(data), sort_keys=True, indent=2)
+                    f.write(indented)
                     f.seek(0)
                     await user_dm.send(file=File(f, "parameters.json"))
         
@@ -352,7 +354,8 @@ async def dddddd(ctx: ApplicationContext, message: Message):
                 embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
                 embed.set_image(url=attachment.url)
                 with io.StringIO() as f:
-                    f.write(data)
+                    indented = json.dumps(json.loads(data), sort_keys=True, indent=2)
+                    f.write(indented)
                     f.seek(0)
                     await ctx.respond(embed=embed, mention_author=False, file=File(f, "parameters.json"))
         
