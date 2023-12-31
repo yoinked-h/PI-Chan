@@ -67,9 +67,15 @@ def get_params_from_string(param_str):
 
 def get_embed(embed_dict, context: Message):
     embed = Embed(color=context.author.color)
+    i = 0
     for key, value in embed_dict.items():
-        embed.add_field(name=key, value=value, inline='Prompt' not in key)
-    embed.set_footer(text=f'Posted by {context.author}', icon_url=context.author.display_avatar)
+        if key.strip() == "" or value.strip() == "":
+            continue
+        i += 1
+        if i >= 25:
+            continue
+        embed.add_field(name=key[:1023], value=value[:1023], inline='Prompt' not in key)
+    embed.set_footer(text=f'Posted by {context.author} - nya~', icon_url=context.author.display_avatar)
     return embed
 
 
@@ -273,18 +279,27 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
     user_dm = await client.get_user(ctx.user_id).create_dm()
     for attachment, data in [(attachments[i], data) for i, data in metadata.items()]:
         try:
-
+            #print(data)
             if 'Steps:' in data:
-                params = get_params_from_string(data)
-                embed = get_embed(params, message)
-                embed.set_image(url=attachment.url)
-                custom_view = MyView()
-                custom_view.metadata = data
-                await user_dm.send(view=custom_view, embed=embed, mention_author=False)
-            else :
+                try:
+                    params = get_params_from_string(data)
+                    embed = get_embed(params, message)
+                    embed.set_image(url=attachment.url)
+                    custom_view = MyView()
+                    custom_view.metadata = data
+                    await user_dm.send(view=custom_view, embed=embed, mention_author=False)
+                except Exception as e:
+                    print(e)
+                    txt = "## >w<\nuh oh! pi-chan did a fucky wucky and cant parse it into a neat view, so heres the raw content\n## >w<\n" + data
+                    await user_dm.send(txt)
+            else:
                 img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
                 embed = Embed(title=img_type+" Parameters", color=message.author.color)
+                i = 0
                 for enum, dax in enumerate(comfyui_get_data(data)):
+                    i += 1
+                    if i >= 25:
+                        continue
                     embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=False)
                 embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
                 embed.set_image(url=attachment.url)
