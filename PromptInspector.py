@@ -296,6 +296,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                 img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
                 embed = Embed(title=img_type+" Parameters", color=message.author.color)
                 i = 0
+                if img_type=="NovelAI":
+                    embed.add_field(name="raw", value=data[:1022])
                 for enum, dax in enumerate(comfyui_get_data(data)):
                     i += 1
                     if i >= 25:
@@ -310,7 +312,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                     f.seek(0)
                     await user_dm.send(file=File(f, "parameters.json"))
         
-        except:
+        except Exception as e:
+            print(e)
             pass
 
 
