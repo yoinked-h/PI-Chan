@@ -255,6 +255,11 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
         print(f"{type(error).__name__}: {error}")
 
 
+def determine(nai):
+    for i in range(len(nai)):
+        if nai[i] == '{' and nai[i+1] == '"':
+            break
+    return nai[i:]
 @client.event
 async def on_raw_reaction_add(ctx: RawReactionActionEvent):
     """Send image metadata in reacted post to user DMs"""
@@ -297,7 +302,13 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                 embed = Embed(title=img_type+" Parameters", color=message.author.color)
                 i = 0
                 if img_type=="NovelAI":
-                    embed.add_field(name="raw", value=data[:1022])
+                    x = determine(data)
+                    for k,v in json.loads(x):
+                        i += 1
+                        if i >= 25:
+                            continue
+                        embed.add_field(name=f"{k}", value=v, inline=False)
+                  
                 for enum, dax in enumerate(comfyui_get_data(data)):
                     i += 1
                     if i >= 25:
