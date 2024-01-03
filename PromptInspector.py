@@ -75,7 +75,7 @@ def get_embed(embed_dict, context: Message):
         if i >= 25:
             continue
         embed.add_field(name=key[:1023], value=value[:1023], inline='Prompt' not in key)
-    embed.set_footer(text=f'Posted by {context.author} - nya~', icon_url=context.author.display_avatar)
+    embed.set_footer(text=f'Posted by {context.author} - woof~', icon_url=context.author.display_avatar)
     return embed
 
 
