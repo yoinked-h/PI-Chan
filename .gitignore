@@ -9,3 +9,6 @@ __pycache__/
 *.cmd
 *.bat
 *.stat.py
+*.env
+channel_list.txt
+venv
