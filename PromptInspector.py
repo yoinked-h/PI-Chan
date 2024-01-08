@@ -244,8 +244,8 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
                     info = img.info['parameters']
                 elif 'prompt' in img.info:
                     info = img.info['prompt']
-                elif img.info['Software'] == 'NovelAI':
-                    info = img.info["Description"] + img.info["Comment"]
+                else:
+                    info = img.info["Comment"]
             else:
                 info = read_info_from_image_stealth(img)
                 
@@ -256,10 +256,10 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
 
 
 def determine(nai):
-    for i in range(len(nai)):
-        if nai[i] == '{' and nai[i+1] == '"':
-            break
-    return nai[i:]
+    #for i in range(len(nai)):
+        #if nai[i] == '{' and nai[i+1] == '"':
+            #break
+    return nai
 @client.event
 async def on_raw_reaction_add(ctx: RawReactionActionEvent):
     """Send image metadata in reacted post to user DMs"""
@@ -303,17 +303,28 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                 i = 0
                 if img_type=="NovelAI":
                     x = determine(data)
-                    for k,v in json.loads(x):
+                    x = json.loads(x)
+                    #print(x)
+                    if "Comment" in x.keys():
+                        t = x['Comment'].replace(r'\"', '"')
+                        t = json.loads(t)
+                        for key in t:
+                            t[key] = str(t[key])
+                        x = x | t
+                    #print(x)
+                    for k in x.keys():
+                        #print(k)
                         i += 1
                         if i >= 25:
                             continue
-                        embed.add_field(name=f"{k}", value=v, inline=False)
-                  
-                for enum, dax in enumerate(comfyui_get_data(data)):
-                    i += 1
-                    if i >= 25:
-                        continue
-                    embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=False)
+                        embed.add_field(name=k, value=str(x[k])[:1023], inline=True)
+                    #await user_dm.send(embed=embed, mention_author=False)
+                else:
+                    for enum, dax in enumerate(comfyui_get_data(data)):
+                        i += 1
+                        if i >= 25:
+                            continue
+                        embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=True)
                 embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
                 embed.set_image(url=attachment.url)
                 await user_dm.send(embed=embed, mention_author=False)
@@ -324,6 +335,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                     await user_dm.send(file=File(f, "parameters.json"))
         
         except Exception as e:
+            print(data)
             print(e)
             pass
 
