@@ -299,12 +299,21 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                     await user_dm.send(txt)
             else:
                 img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
-                embed = Embed(title=img_type+" Parameters", color=message.author.color)
+                
                 i = 0
                 if img_type=="NovelAI":
                     x = determine(data)
                     x = json.loads(x)
                     #print(x)
+                    if "sui_image_params" in x.keys():
+                        t = x['sui_image_params'].copy()
+                        del x['sui_image_params']
+                        for key in t:
+                            t[key] = str(t[key])
+                        x = x|t
+                        embed = Embed(title="Swarm Parameters", color=message.author.color)
+                    else:
+                        embed = Embed(title="Nai Parameters", color=message.author.color)
                     if "Comment" in x.keys():
                         t = x['Comment'].replace(r'\"', '"')
                         t = json.loads(t)
@@ -320,6 +329,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         embed.add_field(name=k, value=str(x[k])[:1023], inline=True)
                     #await user_dm.send(embed=embed, mention_author=False)
                 else:
+                    embed = Embed(title="ComfyUI Parameters", color=message.author.color)
                     for enum, dax in enumerate(comfyui_get_data(data)):
                         i += 1
                         if i >= 25:
