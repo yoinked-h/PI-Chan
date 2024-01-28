@@ -320,6 +320,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         for key in t:
                             t[key] = str(t[key])
                         x = x | t
+                        del x['Comment']
+                        del x['Description']
                     #print(x)
                     for k in x.keys():
                         #print(k)
