@@ -49,12 +49,12 @@ def get_params_from_string(param_str):
     if 'Negative prompt: ' in prompts:
         output_dict['Prompt'] = prompts.split('Negative prompt: ')[0]
         output_dict['Negative Prompt'] = prompts.split('Negative prompt: ')[1]
-        if len(output_dict['Negative Prompt']) > 1000:
-            output_dict['Negative Prompt'] = output_dict['Negative Prompt'][:1000] + '...'
+        if len(output_dict['Negative Prompt']) > 1024:
+            output_dict['Negative Prompt'] = output_dict['Negative Prompt'][:1020] + '...'
     else:
         output_dict['Prompt'] = prompts
-    if len(output_dict['Prompt']) > 1000:
-        output_dict['Prompt'] = output_dict['Prompt'][:1000] + '...'
+    if len(output_dict['Prompt']) > 1024:
+        output_dict['Prompt'] = output_dict['Prompt'][:1020] + '...'
     params = params.split(', ')
     for param in params:
         try:
@@ -74,7 +74,7 @@ def get_embed(embed_dict, context: Message):
         i += 1
         if i >= 25:
             continue
-        embed.add_field(name=key[:1023], value=value[:1023], inline='Prompt' not in key)
+        embed.add_field(name=key[:255], value=value[:1023], inline='Prompt' not in key)
     embed.set_footer(text=f'Posted by {context.author} - nya~', icon_url=context.author.display_avatar)
     return embed
 
@@ -399,7 +399,7 @@ async def message_command(ctx: ApplicationContext, message: Message):
     if not metadata:
         await ctx.respond(f"This post contains no image generation data.\n{message.author.mention} needs to install [this extension](<https://github.com/ashen-sensored/sd_webui_stealth_pnginfo>).", ephemeral=True)
         return
-    response = "\n\n".join(metadata.values())
+    response = json.dumps(metadata, sort_keys=True, indent=2)
     if len(response) < 1980:
         await ctx.respond(f"```yaml\n{response}```", ephemeral=True)
     else:
