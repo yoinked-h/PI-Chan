@@ -339,7 +339,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                 
                 i = 0
                 if img_type=="NovelAI":
-                    x = json.loads(x)
+                    x = json.loads(data)
                     if "sui_image_params" in x.keys():
                         t = x['sui_image_params'].copy()
                         del x['sui_image_params']
