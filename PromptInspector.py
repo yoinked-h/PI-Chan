@@ -274,7 +274,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
         return
     if ctx.emoji.name == '❔':
         user_dm = await client.get_user(ctx.user_id).create_dm()
-        await user_dm.send(embed=Embed(title="Predicted Prompt", color=message.author.color, description=GRADCL.predict(attachments[0].url, "chen-vit", 0.4, True, True, api_name="/classify")[1]).set_image(url=attachments[0].url))
+        await user_dm.send(embed=Embed(title="Predicted Prompt", color=message.author.color, description=GRADCL.predict(attachments[0].url, "chen-moat2", 0.4, True, True, api_name="/classify")[1]).set_image(url=attachments[0].url))
         return
     metadata = OrderedDict()
     tasks = [read_attachment_metadata(i, attachment, metadata) for i, attachment in enumerate(attachments)]
