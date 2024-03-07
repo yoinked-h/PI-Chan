@@ -8,4 +8,7 @@ __pycache__/
 *.sh
 *.cmd
 *.bat
-*.stat.py
+*.stat.py 
+# ^ cursed, dont ask
+# ignore config
+config.toml

@@ -1,32 +1,35 @@
+"""Prompt Inspector (PI-Chan)"""
 import io
-import os
-import toml, json
+from collections import OrderedDict
+from pathlib import Path
 import asyncio
 import gzip
+import json
+import toml
 import gradio_client
-import discord
 from discord import Intents, Embed, ButtonStyle, Message, Attachment, File, RawReactionActionEvent, ApplicationContext
 from discord.ext import commands
 from discord.ui import View, button
 from PIL import Image
-from collections import OrderedDict
-try:
-    import dotenv
-    dotenv.load_dotenv()
-except:
-    pass
+
+if not Path('config.toml').exists():
+    #create a clone of the base
+    base_cfg = Path('config.base.toml').read_text()
+    Path('config.toml').write_text(base_cfg)
+
 CONFIG = toml.load('config.toml')
-monitored = CONFIG.get('MONITORED_CHANNEL_IDS', [])
+monitored: list = CONFIG.get('MONITORED_CHANNEL_IDS', [])
 SCAN_LIMIT_BYTES = CONFIG.get('SCAN_LIMIT_BYTES', 40 * 1024**2)  # Default 40 MB
-GRADCL = gradio_client.Client("https://yoinked-da-nsfw-checker.hf.space/")
+GRADCL = gradio_client.Client(CONFIG.get('GRADIO_BACKEND', "https://yoinked-da-nsfw-checker.hf.space/"))
 intents = Intents.default() | Intents.message_content | Intents.members
 client = commands.Bot(intents=intents)
 
 def comfyui_get_data(dat):
+    """try and extract the prompt/loras/checkpoints in comfy metadata"""
     try:
         aa = []
         dat = json.loads(dat)
-        for key, value in dat.items():
+        for _, value in dat.items():
             if value['class_type'] == "CLIPTextEncode":
                 aa.append({"val": value['inputs']['text'],
                         "type": "prompt"})
@@ -37,11 +40,12 @@ def comfyui_get_data(dat):
                 aa.append({"val": value['inputs']['lora_name'],
                         "type": "lora"})
         return aa
-    except Exception as e:
+    except ValueError as e:
         print(e)
         return []
 
 def get_params_from_string(param_str):
+    """Get parameters from an old a1111 metadata post"""
     output_dict = {}
     parts = param_str.split('Steps: ')
     prompts = parts[0]
@@ -66,6 +70,7 @@ def get_params_from_string(param_str):
 
 
 def get_embed(embed_dict, context: Message):
+    """Create embed from a dictionary"""
     embed = Embed(color=context.author.color)
     i = 0
     for key, value in embed_dict.items():
@@ -80,7 +85,7 @@ def get_embed(embed_dict, context: Message):
 
 
 def read_info_from_image_stealth(image: Image.Image):
-    # trying to read stealth pnginfo
+    """Try and read stealth PNGInfo"""
     width, height = image.size
     pixels = image.load()
 
@@ -205,6 +210,7 @@ async def privacy(ctx):
     base.set_image(url="https://cdn.discordapp.com/avatars/1159983729591210004/8666dba0c893163fcf0e01629e85f6e8?size=1024")
     await ctx.respond(embed=base, ephemeral=True)
 @client.slash_command()
+@commands.has_permissions(manage_messages=True)
 async def toggle_channel(ctx: ApplicationContext, channel_id):
     """
     Adds/Removes a channel to the list of monitored channels for this bot.
@@ -231,30 +237,32 @@ async def toggle_channel(ctx: ApplicationContext, channel_id):
         #update the config
         cfg = toml.load('config.toml')
         cfg['MONITORED_CHANNEL_IDS'] = monitored
-        toml.dump(cfg, open('config.toml', 'w'))
+        toml.dump(cfg, open('config.toml', 'w', encoding='utf-8'))
     except ValueError:
         await ctx.respond("Invalid channel ID.", ephemeral=True)
         return
     except Exception as e:
         print(f"{type(e).__name__}: {e}")
-        await ctx.respond(f"Internal bot error, please DM yoinked.", ephemeral=True)
+        await ctx.respond("Internal bot error, please DM yoinked.", ephemeral=True)
         
     
 
 @client.event
 async def on_ready():
-    print(f"Logged in as {client.user}!")
+    """Prints how many channels are monitored when ready"""
+    print(f"Logged in as {client.user} and ready to monitor {len(monitored)} channels!")
 
 
 @client.event
 async def on_message(message: Message):
+    """Add a magnifying glass if a post has metadata"""
     if message.channel.id in monitored and message.attachments:
         attachments = [a for a in message.attachments if a.filename.lower().endswith(".png") and a.size < SCAN_LIMIT_BYTES]
         for i, attachment in enumerate(attachments): # download one at a time as usually the first image is already ai-generated
             metadata = OrderedDict()
             await read_attachment_metadata(i, attachment, metadata)
             if metadata:
-                await message.add_reaction('🔎')
+                await message.add_reaction(CONFIG.get("METADATA", "🔎"))
                 return
 
 
@@ -264,8 +272,8 @@ class MyView(View):
         self.metadata = None
 
     @button(label='Full Parameters', style=ButtonStyle.green)
-    async def details(self, button, interaction):
-        button.disabled = True
+    async def details(self, fullmta_button, interaction):
+        fullmta_button.disabled = True
         await interaction.response.edit_message(view=self)
         if len(self.metadata) > 1980:
             with io.StringIO() as f:
@@ -301,7 +309,7 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
 @client.event
 async def on_raw_reaction_add(ctx: RawReactionActionEvent):
     """Send image metadata in reacted post to user DMs"""
-    if ctx.emoji.name not in ['🔎', '❔'] or ctx.channel_id not in monitored or ctx.member.bot:
+    if ctx.emoji.name not in [CONFIG.get('METADATA', '🔎'), CONFIG.get('GUESS', '❔')] or ctx.channel_id not in monitored or ctx.member.bot:
         return
     channel = client.get_channel(ctx.channel_id)
     message = await channel.fetch_message(ctx.message_id)
@@ -310,9 +318,20 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
     attachments = [a for a in message.attachments if a.filename.lower().endswith(".png")]
     if not attachments:
         return
-    if ctx.emoji.name == '❔':
+    if ctx.emoji.name == CONFIG.get('GUESS', '❔'):
+        # todo: make this cleaner
         user_dm = await client.get_user(ctx.user_id).create_dm()
-        await user_dm.send(embed=Embed(title="Predicted Prompt", color=message.author.color, description=GRADCL.predict(attachments[0].url, "chen-convnext3", 0.45, True, True, api_name="/classify")[1]).set_image(url=attachments[0].url))
+        embed = Embed(title="Predicted Prompt", color=message.author.color)
+        embed = embed.set_image(url=attachments[0].url)
+        predicted = GRADCL.predict(attachments[0].url,
+                                   "chen-convnext3",
+                                   0.45, True, True, api_name="/classify")[1]
+        embed.add_field(name="DashSpace", value=predicted)
+        predicted = predicted.replace(" ", ",")
+        predicted = predicted.replace("-", " ")
+        predicted = predicted.replace(",", ", ")
+        embed.add_field(name="CommaSpace", value=predicted)
+        await user_dm.send(embed=embed)
         return
     metadata = OrderedDict()
     tasks = [read_attachment_metadata(i, attachment, metadata) for i, attachment in enumerate(attachments)]
@@ -386,7 +405,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
 
 
 @client.message_command(name="View Raw Prompt")
-async def message_command(ctx: ApplicationContext, message: Message):
+async def raw_prompt(ctx: ApplicationContext, message: Message):
     """Get raw list of parameters for every image in this post."""
     attachments = [a for a in message.attachments if a.filename.lower().endswith(".png")]
     if not attachments:
@@ -408,7 +427,7 @@ async def message_command(ctx: ApplicationContext, message: Message):
             f.seek(0)
             await ctx.respond(file=File(f, "parameters.yaml"), ephemeral=True)
 @client.message_command(name="View Parameters/Prompt")
-async def dddddd(ctx: ApplicationContext, message: Message):
+async def formatted(ctx: ApplicationContext, message: Message):
     """Get a formatted list of parameters for every image in this post."""
     attachments = [a for a in message.attachments if a.filename.lower().endswith(".png")]
     if not attachments:
@@ -421,7 +440,6 @@ async def dddddd(ctx: ApplicationContext, message: Message):
     if not metadata:
         await ctx.respond(f"This post contains no image generation data.\n{message.author.mention} needs to install [this extension](<https://github.com/ashen-sensored/sd_webui_stealth_pnginfo>).", ephemeral=True)
         return
-    user_dm = await client.get_user(ctx.user.id).create_dm()
     for attachment, data in [(attachments[i], data) for i, data in metadata.items()]:
         try:
 
@@ -449,4 +467,4 @@ async def dddddd(ctx: ApplicationContext, message: Message):
             pass
 
 
-client.run(os.environ["BOT_TOKEN"])
+client.run(CONFIG.get('TOKEN'))
