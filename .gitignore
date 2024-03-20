@@ -8,7 +8,7 @@ __pycache__/
 *.sh
 *.cmd
 *.bat
-*.stat.py
-*.env
-channel_list.txt
-venv
+*.stat.py 
+# ^ cursed, dont ask
+# ignore config
+config.toml
