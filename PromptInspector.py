@@ -466,5 +466,18 @@ async def formatted(ctx: ApplicationContext, message: Message):
         except:
             pass
 
+try:
+    import psutil
+    @client.slash_command()
+    async def status(ctx: ApplicationContext):
+        """Get the status of the VM/bot."""
+        embed = Embed(title="Status", color=0x00ff00)
+        embed.add_field(name="CPU Usage", value=f"{psutil.cpu_percent()}%")
+        embed.add_field(name="RAM Usage", value=f"{psutil.virtual_memory().percent}%")
+        embed.add_field(name="Disk Usage", value=f"{psutil.disk_usage('/').percent}%")
+        embed.set_footer(text="migus? plapped.", icon_url=ctx.author.display_avatar)
+        await ctx.respond(embed=embed, ephemeral=True)
+except ImportError:
+    pass
 
 client.run(CONFIG.get('TOKEN'))
