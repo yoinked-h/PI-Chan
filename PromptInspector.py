@@ -280,9 +280,9 @@ class MyView(View):
                 indented = json.dumps(json.loads(self.metadata), sort_keys=True, indent=2)
                 f.write(indented)
                 f.seek(0)
-                await interaction.followup.send(file=File(f, "parameters.yaml"))
+                await interaction.followup.send(file=File(f, "parameters.json"))
         else:
-            await interaction.followup.send(f"```yaml\n{self.metadata}```")
+            await interaction.followup.send(f"```json\n{self.metadata}```")
 
 
 async def read_attachment_metadata(i: int, attachment: Attachment, metadata: OrderedDict):
@@ -423,9 +423,10 @@ async def raw_prompt(ctx: ApplicationContext, message: Message):
         await ctx.respond(f"```yaml\n{response}```", ephemeral=True)
     else:
         with io.StringIO() as f:
-            f.write(response)
+            indented = json.dumps(json.loads(data), sort_keys=True, indent=2)
+            f.write(indented)
             f.seek(0)
-            await ctx.respond(file=File(f, "parameters.yaml"), ephemeral=True)
+            await ctx.respond(embed=embed, mention_author=False, file=File(f, "parameters.json"))
 @client.message_command(name="View Parameters/Prompt")
 async def formatted(ctx: ApplicationContext, message: Message):
     """Get a formatted list of parameters for every image in this post."""
