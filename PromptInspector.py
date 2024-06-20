@@ -423,7 +423,11 @@ async def raw_prompt(ctx: ApplicationContext, message: Message):
         await ctx.respond(f"```yaml\n{response}```", ephemeral=True)
     else:
         with io.StringIO() as f:
-            indented = json.dumps(json.loads(data), sort_keys=True, indent=2)
+            try:
+                indented = json.dumps(json.loads(response), sort_keys=True, indent=2)
+            except:
+                pass
+                #not a json
             f.write(indented)
             f.seek(0)
             await ctx.respond(embed=embed, mention_author=False, file=File(f, "parameters.json"))
