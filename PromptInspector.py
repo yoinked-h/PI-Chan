@@ -350,7 +350,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                     embed.set_image(url=attachment.url)
                     custom_view = MyView()
                     custom_view.metadata = data
-                    await user_dm.send(view=custom_view, embed=embed, mention_author=False)
+                    await user_dm.send(view=custom_view, embed=embed)
                 except Exception as e:
                     print(e)
                     txt = "## >w<\nuh oh! pi-chan did a fucky wucky and cant parse it into a neat view, so heres the raw content\n## >w<\n" + data
@@ -383,7 +383,6 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         if i >= 25:
                             continue
                         embed.add_field(name=k, value=str(x[k])[:1023], inline=True)
-                    #await user_dm.send(embed=embed, mention_author=False)
                 else:
                     embed = Embed(title="ComfyUI Parameters", color=message.author.color)
                     for enum, dax in enumerate(comfyui_get_data(data)):
@@ -393,7 +392,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=True)
                 embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
                 embed.set_image(url=attachment.url)
-                await user_dm.send(embed=embed, mention_author=False)
+                await user_dm.send(embed=embed)
                 with io.StringIO() as f:
                     indented = json.dumps(json.loads(data), sort_keys=True, indent=2)
                     f.write(indented)
@@ -432,7 +431,7 @@ async def raw_prompt(ctx: ApplicationContext, message: Message):
                 #not a json
             f.write(indented)
             f.seek(0)
-            await ctx.respond(embed=embed, mention_author=False, file=File(f, "parameters.json"))
+            await ctx.respond(embed=embed, file=File(f, "parameters.json"))
 @client.message_command(name="View Parameters/Prompt")
 async def formatted(ctx: ApplicationContext, message: Message):
     """Get a formatted list of parameters for every image in this post."""
@@ -447,32 +446,72 @@ async def formatted(ctx: ApplicationContext, message: Message):
     if not metadata:
         await ctx.respond(f"This post contains no image generation data.\n{message.author.mention} needs to install [this extension](<https://github.com/ashen-sensored/sd_webui_stealth_pnginfo>).", ephemeral=True)
         return
-    for attachment, data in [(attachments[i], data) for i, data in metadata.items()]:
-        try:
-
-            if 'Steps:' in data:
+    try:
+        if 'Steps:' in data:
+            try:
                 params = get_params_from_string(data)
                 embed = get_embed(params, message)
                 embed.set_image(url=attachment.url)
                 custom_view = MyView()
                 custom_view.metadata = data
-                await ctx.respond(view=custom_view, embed=embed, mention_author=False)
-            else :
-                img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
-                embed = Embed(title=img_type+" Parameters", color=message.author.color)
+                await ctx.respond(view=custom_view, embed=embed)
+            except Exception as e:
+                print(e)
+                txt = "## >w<\nuh oh! pi-chan did a fucky wucky and cant parse it into a neat view, so heres the raw content\n## >w<\n" + data
+                await ctx.respond(txt)
+        else:
+            img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
+            
+            i = 0
+            if img_type=="NovelAI":
+                x = json.loads(data)
+                if "sui_image_params" in x.keys():
+                    t = x['sui_image_params'].copy()
+                    del x['sui_image_params']
+                    for key in t:
+                        t[key] = str(t[key])
+                    x = x|t
+                    embed = Embed(title="Swarm Parameters", color=message.author.color)
+                else:
+                    embed = Embed(title="Nai Parameters", color=message.author.color)
+                if "Comment" in x.keys():
+                    t = x['Comment'].replace(r'\"', '"')
+                    t = json.loads(t)
+                    for key in t:
+                        t[key] = str(t[key])
+                    x = x | t
+                    del x['Comment']
+                    del x['Description']
+                for k in x.keys():
+                    i += 1
+                    if i >= 25:
+                        continue
+                    embed.add_field(name=k, value=str(x[k])[:1023], inline=True)
+            else:
+                embed = Embed(title="ComfyUI Parameters", color=message.author.color)
                 for enum, dax in enumerate(comfyui_get_data(data)):
-                    embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=False)
-                embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
-                embed.set_image(url=attachment.url)
-                with io.StringIO() as f:
+                    i += 1
+                    if i >= 25:
+                        continue
+                    embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=True)
+            embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
+            embed.set_image(url=attachment.url)
+            with io.StringIO() as f:
+                try:
                     indented = json.dumps(json.loads(data), sort_keys=True, indent=2)
-                    f.write(indented)
-                    f.seek(0)
-                    await ctx.respond(embed=embed, mention_author=False, file=File(f, "parameters.json"))
-        
+                else:
+                    indented = data
+                f.write(indented)
+                f.seek(0)
+                await ctx.respond(embed=embed, file=File(f, "parameters.json"))
         except Exception as e:
-            print(f"{type(e).__name__}: {e}")
+            print(data)
+            print(e)
             pass
+        
+    except Exception as e:
+        print(f"{type(e).__name__}: {e}")
+        pass
 
 try:
     import psutil
