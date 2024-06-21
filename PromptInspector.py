@@ -295,8 +295,10 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
                     info = img.info['parameters']
                 elif 'prompt' in img.info:
                     info = img.info['prompt']
-                else:
+                elif 'Comment' in img.info:
                     info = img.info["Comment"]
+                else: #comfy?
+                    info = comfyui_get_data(img.info)
             else:
                 info = read_info_from_image_stealth(img)
                 
@@ -323,7 +325,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
         user_dm = await client.get_user(ctx.user_id).create_dm()
         embed = Embed(title="Predicted Prompt", color=message.author.color)
         embed = embed.set_image(url=attachments[0].url)
-        predicted = GRADCL.predict(attachments[0].url,
+        predicted = GRADCL.predict(gradio_client.file(attachments[0].url),
                                    "chen-convnext3",
                                    0.45, True, True, api_name="/classify")[1]
         embed.add_field(name="DashSpace", value=predicted)
@@ -468,7 +470,8 @@ async def formatted(ctx: ApplicationContext, message: Message):
                     f.seek(0)
                     await ctx.respond(embed=embed, mention_author=False, file=File(f, "parameters.json"))
         
-        except:
+        except Exception as e:
+            print(f"{type(e).__name__}: {e}")
             pass
 
 try:
