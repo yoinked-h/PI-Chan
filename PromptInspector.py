@@ -430,7 +430,7 @@ async def raw_prompt(ctx: ApplicationContext, message: Message):
         with io.StringIO() as f:
             f.write(response)
             f.seek(0)
-            await ctx.respond(embed=embed, file=File(f, "parameters.json"))
+            await ctx.respond(file=File(f, "parameters.json"))
 @client.message_command(name="View Parameters/Prompt")
 async def formatted(ctx: ApplicationContext, message: Message):
     """Get a formatted list of parameters for every image in this post."""
