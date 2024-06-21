@@ -439,7 +439,7 @@ async def formatted(ctx: ApplicationContext, message: Message):
     tasks = [read_attachment_metadata(i, attachment, metadata) for i, attachment in enumerate(attachments)]
     await asyncio.gather(*tasks)
     _, data = metadata.popitem(last=False)
-    attatchment = attachments[0]
+    attachment  = attachments[0]
     if not data:
         await ctx.respond(f"This post contains no image generation data.\n{message.author.mention} needs to install [this extension](<https://github.com/ashen-sensored/sd_webui_stealth_pnginfo>).", ephemeral=True)
         return
