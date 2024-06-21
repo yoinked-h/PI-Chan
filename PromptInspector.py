@@ -443,6 +443,7 @@ async def formatted(ctx: ApplicationContext, message: Message):
     metadata = OrderedDict()
     tasks = [read_attachment_metadata(i, attachment, metadata) for i, attachment in enumerate(attachments)]
     await asyncio.gather(*tasks)
+    print(metadata.items()) #debugging
     if not metadata:
         await ctx.respond(f"This post contains no image generation data.\n{message.author.mention} needs to install [this extension](<https://github.com/ashen-sensored/sd_webui_stealth_pnginfo>).", ephemeral=True)
         return
