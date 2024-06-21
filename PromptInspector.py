@@ -504,10 +504,6 @@ async def formatted(ctx: ApplicationContext, message: Message):
                 f.write(indented)
                 f.seek(0)
                 await ctx.respond(embed=embed, file=File(f, "parameters.json"))
-        except Exception as e:
-            print(data)
-            print(e)
-            pass
         
     except Exception as e:
         print(f"{type(e).__name__}: {e}")
