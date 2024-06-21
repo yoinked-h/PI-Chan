@@ -449,9 +449,7 @@ async def formatted(ctx: ApplicationContext, message: Message):
                 params = get_params_from_string(data)
                 embed = get_embed(params, message)
                 embed.set_image(url=attachment.url)
-                custom_view = MyView()
-                custom_view.metadata = data
-                await ctx.respond(view=custom_view, embed=embed)
+                await ctx.respond(embed=embed)
             except Exception as e:
                 print(e)
                 txt = "## >w<\nuh oh! pi-chan did a fucky wucky and cant parse it into a neat view, so heres the raw content\n## >w<\n" + data
