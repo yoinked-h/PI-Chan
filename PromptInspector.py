@@ -499,7 +499,7 @@ async def formatted(ctx: ApplicationContext, message: Message):
             with io.StringIO() as f:
                 try:
                     indented = json.dumps(json.loads(data), sort_keys=True, indent=2)
-                else:
+                except:
                     indented = data
                 f.write(indented)
                 f.seek(0)
