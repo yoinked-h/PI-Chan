@@ -419,6 +419,15 @@ async def raw_prompt(ctx: ApplicationContext, message: Message):
     if not metadata:
         await ctx.respond(f"This post contains no image generation data.\n{message.author.mention} needs to install [this extension](<https://github.com/ashen-sensored/sd_webui_stealth_pnginfo>).", ephemeral=True)
         return
+    for n in range(0,len(metadata)-1):
+        try:
+            try:
+                mta = json.loads(metadata[n])
+            except:
+                mta = metadata[n]
+            metadata[n] = json.dumps(mta, sort_keys=True, indent=2)
+        except:
+            pass
     response = json.dumps(metadata, sort_keys=True, indent=2)
     if len(response) < 1980:
         await ctx.respond(f"```yaml\n{response}```", ephemeral=True)
