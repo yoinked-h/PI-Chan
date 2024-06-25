@@ -397,7 +397,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                     indented = json.dumps(json.loads(data), sort_keys=True, indent=2)
                     f.write(indented)
                     f.seek(0)
-                    await user_dm.send(embed=embed, files=[File(f, "parameters.json"), attachment.to_file()])
+                    att = await attachment.to_file()
+                    await ctx.respond(embed=embed, files=[File(f, "parameters.json"), att])
         
         except Exception as e:
             print(data)
@@ -502,7 +503,8 @@ async def formatted(ctx: ApplicationContext, message: Message):
                     indented = data
                 f.write(indented)
                 f.seek(0)
-                await ctx.respond(embed=embed, files=[File(f, "parameters.json"), attachment.to_file()])
+                att = await attachment.to_file()
+                await ctx.respond(embed=embed, files=[File(f, "parameters.json"), att])
         
     except Exception as e:
         print(f"{type(e).__name__}: {e}")
