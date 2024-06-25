@@ -382,7 +382,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         i += 1
                         if i >= 25:
                             continue
-                        embed.add_field(name=k, value=str(x[k])[:1023], inline=True)
+                        inline = False if 'prompt' in k else True
+                        embed.add_field(name=k, value=str(x[k])[:1023], inline=inline)
                 else:
                     embed = Embed(title="ComfyUI Parameters", color=message.author.color)
                     for enum, dax in enumerate(comfyui_get_data(data)):
