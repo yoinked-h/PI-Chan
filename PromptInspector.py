@@ -393,12 +393,11 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=True)
                 embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
                 embed.set_image(url=attachment.url)
-                await user_dm.send(embed=embed)
                 with io.StringIO() as f:
                     indented = json.dumps(json.loads(data), sort_keys=True, indent=2)
                     f.write(indented)
                     f.seek(0)
-                    await user_dm.send(file=File(f, "parameters.json"))
+                    await user_dm.send(embed=embed, files=[File(f, "parameters.json"), attachment.to_file()])
         
         except Exception as e:
             print(data)
@@ -496,7 +495,6 @@ async def formatted(ctx: ApplicationContext, message: Message):
                         continue
                     embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=True)
             embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
-            embed.set_image(url=attachment.url)
             with io.StringIO() as f:
                 try:
                     indented = json.dumps(json.loads(data), sort_keys=True, indent=2)
@@ -504,7 +502,7 @@ async def formatted(ctx: ApplicationContext, message: Message):
                     indented = data
                 f.write(indented)
                 f.seek(0)
-                await ctx.respond(embed=embed, file=File(f, "parameters.json"))
+                await ctx.respond(embed=embed, files=[File(f, "parameters.json"), attachment.to_file()])
         
     except Exception as e:
         print(f"{type(e).__name__}: {e}")
