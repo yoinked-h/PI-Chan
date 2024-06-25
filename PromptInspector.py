@@ -398,7 +398,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                     f.write(indented)
                     f.seek(0)
                     att = await attachment.to_file()
-                    await ctx.send(embed=embed, files=[File(f, "parameters.json"), att])
+                    await user_dm.send(embed=embed, files=[File(f, "parameters.json"), att])
         
         except Exception as e:
             print(data)
