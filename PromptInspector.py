@@ -7,6 +7,7 @@ import gzip
 import json
 import toml
 import gradio_client
+import discord
 from discord import Intents, Embed, ButtonStyle, Message, Attachment, File, RawReactionActionEvent, ApplicationContext
 from discord.ext import commands
 from discord.ui import View, button
