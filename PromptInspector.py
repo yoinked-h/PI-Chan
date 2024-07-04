@@ -433,11 +433,11 @@ async def raw_prompt(ctx: ApplicationContext, message: Message):
             f.write(response)
             f.seek(0)
             await ctx.respond(file=File(f, "parameters.json"))
-@client.message_command(name="View Parameters/Prompt")
-#integration_types={
-#        discord.IntegrationType.guild_install,
-#        discord.IntegrationType.user_install, #TEST THIS !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! it didnt
-#    }
+@client.message_command(name="View Parameters/Prompt",
+integration_types={
+        discord.IntegrationType.guild_install,
+        discord.IntegrationType.user_install, #update to dev pycord!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    })
 async def formatted(ctx: ApplicationContext, message: Message):
     """Get a formatted list of parameters for every image in this post."""
     attachments = [a for a in message.attachments if a.filename.lower().endswith(".png")]
