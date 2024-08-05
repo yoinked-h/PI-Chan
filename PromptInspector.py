@@ -7,6 +7,7 @@ import gzip
 import json
 import toml
 import gradio_client
+import discord
 from discord import Intents, Embed, ButtonStyle, Message, Attachment, File, RawReactionActionEvent, ApplicationContext
 from discord.ext import commands
 from discord.ui import View, button
@@ -398,7 +399,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                     f.write(indented)
                     f.seek(0)
                     att = await attachment.to_file()
-                    await user_dm.send(embed=embed, files=[File(f, "parameters.json"), att])
+                    await user_dm.send(embed=embed, files=[File(f, "parameters.json")])
         
         except Exception as e:
             print(data)
@@ -432,7 +433,11 @@ async def raw_prompt(ctx: ApplicationContext, message: Message):
             f.write(response)
             f.seek(0)
             await ctx.respond(file=File(f, "parameters.json"))
-@client.message_command(name="View Parameters/Prompt")
+@client.message_command(name="View Parameters/Prompt",
+integration_types={
+        discord.IntegrationType.guild_install,
+        discord.IntegrationType.user_install, #update to dev pycord!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    })
 async def formatted(ctx: ApplicationContext, message: Message):
     """Get a formatted list of parameters for every image in this post."""
     attachments = [a for a in message.attachments if a.filename.lower().endswith(".png")]

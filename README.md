@@ -22,9 +22,9 @@ Install [this](https://github.com/ashen-sensored/sd_webui_stealth_pnginfo) if it
 5. Enable the `Server Members Intent` in the Discord developer portal
 6. Copy/rename the `config.base.toml` into `config.toml`
 7. Set `TOKEN = "<your discord bot token>"` in the .toml file
-    7.1. So like `TOKEN = "HFBVSAOa876vat764bq8967fgh8d8a76"`
-8. Add the channel IDs you want the bot to work in into the `config.toml` file
-9.  Run the bot with `python3 PromptInspector.py`
+8. So like `TOKEN = "HFBVSAOa876vat764bq8967fgh8d8a76"`
+9. Add the channel IDs you want the bot to work in into the `config.toml` file
+10.  Run the bot with `python3 PromptInspector.py`
 
 ## Examples
 ![1](images/mag_glass.png)
