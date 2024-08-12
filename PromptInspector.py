@@ -327,7 +327,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
         embed = Embed(title="Predicted Prompt", color=message.author.color)
         embed = embed.set_image(url=attachments[0].url)
         predicted = GRADCL.predict(gradio_client.file(attachments[0].url),
-                                   "chen-convnext3",
+                                   "chen-evangelion",
                                    0.45, True, True, api_name="/classify")[1]
         embed.add_field(name="DashSpace", value=predicted)
         predicted = predicted.replace(" ", ",")
