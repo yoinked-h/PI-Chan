@@ -323,18 +323,21 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
         return
     if ctx.emoji.name == CONFIG.get('GUESS', '❔'):
         # todo: make this cleaner
-        user_dm = await client.get_user(ctx.user_id).create_dm()
-        embed = Embed(title="Predicted Prompt", color=message.author.color)
-        embed = embed.set_image(url=attachments[0].url)
-        predicted = GRADCL.predict(gradio_client.file(attachments[0].url),
+        try:
+            user_dm = await client.get_user(ctx.user_id).create_dm()
+            embed = Embed(title="Predicted Prompt", color=message.author.color)
+            embed = embed.set_image(url=attachments[0].url)
+            predicted = GRADCL.predict(gradio_client.file(attachments[0].url),
                                    "chen-evangelion",
                                    0.45, True, True, api_name="/classify")[1]
-        embed.add_field(name="DashSpace", value=predicted)
-        predicted = predicted.replace(" ", ",")
-        predicted = predicted.replace("-", " ")
-        predicted = predicted.replace(",", ", ")
-        embed.add_field(name="CommaSpace", value=predicted)
-        await user_dm.send(embed=embed)
+            embed.add_field(name="DashSpace", value=predicted)
+            predicted = predicted.replace(" ", ",")
+            predicted = predicted.replace("-", " ")
+            predicted = predicted.replace(",", ", ")
+            embed.add_field(name="CommaSpace", value=predicted)
+            await user_dm.send(embed=embed)
+        except Exception as e:
+            print(e)
         return
     metadata = OrderedDict()
     tasks = [read_attachment_metadata(i, attachment, metadata) for i, attachment in enumerate(attachments)]
