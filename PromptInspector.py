@@ -32,13 +32,13 @@ def comfyui_get_data(dat):
         dat = json.loads(dat)
         for _, value in dat.items():
             if value['class_type'] == "CLIPTextEncode":
-                aa.append({"val": value['inputs']['text'],
+                aa.append({"val": value['inputs']['text'][:1023],
                         "type": "prompt"})
             elif value['class_type'] == "CheckpointLoaderSimple":
-                aa.append({"val": value['inputs']['ckpt_name'],
+                aa.append({"val": value['inputs']['ckpt_name'][:1023],
                         "type": "model"})
             elif value['class_type'] == "LoraLoader":
-                aa.append({"val": value['inputs']['lora_name'],
+                aa.append({"val": value['inputs']['lora_name'][:1023],
                         "type": "lora"})
         return aa
     except ValueError as e:
