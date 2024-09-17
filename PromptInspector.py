@@ -32,13 +32,13 @@ def comfyui_get_data(dat):
         dat = json.loads(dat)
         for _, value in dat.items():
             if value['class_type'] == "CLIPTextEncode":
-                aa.append({"val": value['inputs']['text'],
+                aa.append({"val": value['inputs']['text'][:1023],
                         "type": "prompt"})
             elif value['class_type'] == "CheckpointLoaderSimple":
-                aa.append({"val": value['inputs']['ckpt_name'],
+                aa.append({"val": value['inputs']['ckpt_name'][:1023],
                         "type": "model"})
             elif value['class_type'] == "LoraLoader":
-                aa.append({"val": value['inputs']['lora_name'],
+                aa.append({"val": value['inputs']['lora_name'][:1023],
                         "type": "lora"})
         return aa
     except ValueError as e:
@@ -80,6 +80,9 @@ def get_embed(embed_dict, context: Message):
         i += 1
         if i >= 25:
             continue
+        
+        #correction :anger: :sob:
+        value = f"```\n{str(value)[:1000]}\n```"
         embed.add_field(name=key[:255], value=value[:1023], inline='Prompt' not in key)
     embed.set_footer(text=f'Posted by {context.author} - woof~', icon_url=context.author.display_avatar)
     return embed
@@ -323,18 +326,23 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
         return
     if ctx.emoji.name == CONFIG.get('GUESS', '❔'):
         # todo: make this cleaner
-        user_dm = await client.get_user(ctx.user_id).create_dm()
-        embed = Embed(title="Predicted Prompt", color=message.author.color)
-        embed = embed.set_image(url=attachments[0].url)
-        predicted = GRADCL.predict(gradio_client.file(attachments[0].url),
-                                   "chen-convnext3",
+        try:
+            user_dm = await client.get_user(ctx.user_id).create_dm()
+            embed = Embed(title="Predicted Prompt", color=message.author.color)
+            embed = embed.set_image(url=attachments[0].url)
+            predicted = GRADCL.predict(gradio_client.file(attachments[0].url),
+                                   "chen-evangelion",
                                    0.45, True, True, api_name="/classify")[1]
-        embed.add_field(name="DashSpace", value=predicted)
-        predicted = predicted.replace(" ", ",")
-        predicted = predicted.replace("-", " ")
-        predicted = predicted.replace(",", ", ")
-        embed.add_field(name="CommaSpace", value=predicted)
-        await user_dm.send(embed=embed)
+            #correction :anger: :sob:
+            predicted = f"```\n{predicted}\n```"
+            embed.add_field(name="DashSpace", value=predicted)
+            predicted = predicted.replace(" ", ",")
+            predicted = predicted.replace("-", " ")
+            predicted = predicted.replace(",", ", ")
+            embed.add_field(name="CommaSpace", value=predicted)
+            await user_dm.send(embed=embed)
+        except Exception as e:
+            print(e)
         return
     metadata = OrderedDict()
     tasks = [read_attachment_metadata(i, attachment, metadata) for i, attachment in enumerate(attachments)]
@@ -384,7 +392,9 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         if i >= 25:
                             continue
                         inline = False if 'prompt' in k else True
-                        embed.add_field(name=k, value=str(x[k])[:1023], inline=inline)
+                        #correction :anger: :sob:
+                        x[k] = f"```\n{str(x[k])[:1000]}\n```"
+                        embed.add_field(name=k, value=str(x[k]), inline=inline)
                 else:
                     embed = Embed(title="ComfyUI Parameters", color=message.author.color)
                     for enum, dax in enumerate(comfyui_get_data(data)):
@@ -492,6 +502,8 @@ async def formatted(ctx: ApplicationContext, message: Message):
                     if i >= 25:
                         continue
                     inline = False if 'prompt' in k else True
+                    #correction :anger: :sob:
+                    x[k] = f"```\n{str(x[k])[:1000]}\n```"
                     embed.add_field(name=k, value=str(x[k])[:1023], inline=inline)
             else:
                 embed = Embed(title="ComfyUI Parameters", color=message.author.color)
