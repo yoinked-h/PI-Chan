@@ -40,6 +40,10 @@ def comfyui_get_data(dat):
             elif value['class_type'] == "LoraLoader":
                 aa.append({"val": value['inputs']['lora_name'][:1023],
                         "type": "lora"})
+            #metadata nodes
+            elif '_meta' in value.keys():
+                aa.append({"val": value['inputs']['text'][:1023],
+                        "type": value['_meta']['title']})
         return aa
     except ValueError as e:
         print(e)
