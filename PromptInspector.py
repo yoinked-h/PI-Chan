@@ -33,8 +33,13 @@ def comfyui_get_data(dat):
         for _, value in dat.items():
             #metadata nodes
             if '_meta' in value.keys():
-                aa.append({"val": value['inputs']['text'][:1023],
+                try:
+                    aa.append({"val": value['inputs']['text'][:1023],
                         "type": value['_meta']['title']})
+                except:
+                    pass
+                    #aa.append({"val": "node ,
+                        #"type": value['_meta']['title']})
             elif value['class_type'] == "CLIPTextEncode":
                 aa.append({"val": value['inputs']['text'][:1023],
                         "type": "prompt"})
