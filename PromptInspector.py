@@ -26,7 +26,13 @@ intents = Intents.default() | Intents.message_content | Intents.members
 client = commands.Bot(intents=intents)
 
 def comfyui_get_data(dat):
-    """try and extract the prompt/loras/checkpoints in comfy metadata"""
+    """try and extract the prompt/loras/checkpoints in comfy metadata / handle invokeai metadata"""
+    if "generation_mode" in dat:
+        aa = []
+        dat = json.loads(dat)
+        for k, value in dat.items():
+                aa.append({"val": value[:1023],
+                        "type": k})
     try:
         aa = []
         dat = json.loads(dat)
@@ -40,10 +46,15 @@ def comfyui_get_data(dat):
             elif value['class_type'] == "LoraLoader":
                 aa.append({"val": value['inputs']['lora_name'][:1023],
                         "type": "lora"})
+            #metadata nodes
+            elif '_meta' in value.keys():
+                aa.append({"val": value['inputs']['text'][:1023],
+                        "type": value['_meta']['title']})
         return aa
     except ValueError as e:
         print(e)
         return []
+
 
 def get_params_from_string(param_str):
     """Get parameters from an old a1111 metadata post"""
@@ -301,6 +312,8 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
                     info = img.info['prompt']
                 elif 'Comment' in img.info:
                     info = img.info["Comment"]
+                elif 'invokeai_metadata' in img.info:
+                    info = img.info['invokeai_metadata']
                 else: #comfy?
                     info = comfyui_get_data(img.info)
             else:
@@ -368,8 +381,20 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                 img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
                 
                 i = 0
-                if img_type=="NovelAI":
+                if img_type!="ComfyUI":
                     x = json.loads(data)
+                    if "generation_mode" in x.keys():
+                        img_type = "Invoke"
+                        try:
+                            del x['generation_mode']
+                            del x['seamless_y']
+                            del x['positive_style_prompt']
+                            del x['negative_style_prompt']
+                            del x['regions']
+                            del x['canvas_v2_metadata']
+                            del x['app_version']
+                        except:
+                            pass
                     if "sui_image_params" in x.keys():
                         t = x['sui_image_params'].copy()
                         del x['sui_image_params']
@@ -378,7 +403,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         x = x|t
                         embed = Embed(title="Swarm Parameters", color=message.author.color)
                     else:
-                        embed = Embed(title="Nai Parameters", color=message.author.color)
+                        embed = Embed(title=f"{img_type} Parameters", color=message.author.color)
                     if "Comment" in x.keys():
                         t = x['Comment'].replace(r'\"', '"')
                         t = json.loads(t)
@@ -396,12 +421,14 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         x[k] = f"```\n{str(x[k])[:1000]}\n```"
                         embed.add_field(name=k, value=str(x[k]), inline=inline)
                 else:
-                    embed = Embed(title="ComfyUI Parameters", color=message.author.color)
+                    if "generation_mode" in data:
+                        img_type = "Invoke"
+                    embed = Embed(title=f"{img_type} Parameters", color=message.author.color)
                     for enum, dax in enumerate(comfyui_get_data(data)):
                         i += 1
                         if i >= 25:
                             continue
-                        embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=True)
+                        embed.add_field(name=f"{dax['type']} [{enum+1}]", value=dax['val'], inline=True)
                 embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
                 embed.set_image(url=attachment.url)
                 with io.StringIO() as f:
@@ -478,8 +505,20 @@ async def formatted(ctx: ApplicationContext, message: Message):
             img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
             
             i = 0
-            if img_type=="NovelAI":
+            if img_type!="ComfyUI":
                 x = json.loads(data)
+                if "generation_mode" in x.keys():
+                    img_type = "Invoke"
+                    try:
+                        del x['generation_mode']
+                        del x['seamless_y']
+                        del x['positive_style_prompt']
+                        del x['negative_style_prompt']
+                        del x['regions']
+                        del x['canvas_v2_metadata']
+                        del x['app_version']
+                    except:
+                        pass
                 if "sui_image_params" in x.keys():
                     t = x['sui_image_params'].copy()
                     del x['sui_image_params']
@@ -506,12 +545,14 @@ async def formatted(ctx: ApplicationContext, message: Message):
                     x[k] = f"```\n{str(x[k])[:1000]}\n```"
                     embed.add_field(name=k, value=str(x[k])[:1023], inline=inline)
             else:
-                embed = Embed(title="ComfyUI Parameters", color=message.author.color)
+                if "generation_mode" in data:
+                    img_type = "Invoke"
+                embed = Embed(title=f"{img_type} Parameters", color=message.author.color)
                 for enum, dax in enumerate(comfyui_get_data(data)):
                     i += 1
                     if i >= 25:
                         continue
-                    embed.add_field(name=f"{dax['type']} {enum+1} (beta)", value=dax['val'], inline=True)
+                    embed.add_field(name=f"{dax['type']} [{enum+1}]", value=dax['val'], inline=True)
             embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
             with io.StringIO() as f:
                 try:
@@ -539,6 +580,6 @@ try:
         embed.set_footer(text="migus? plapped.", icon_url=ctx.author.display_avatar)
         await ctx.respond(embed=embed, ephemeral=True)
 except ImportError:
-    pass
+    pass #no psutil :chenShrug:
 
 client.run(CONFIG.get('TOKEN'))
