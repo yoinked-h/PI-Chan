@@ -381,8 +381,20 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                 img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
                 
                 i = 0
-                if img_type=="NovelAI":
+                if img_type!="ComfyUI":
                     x = json.loads(data)
+                    if "generation_mode" in x.keys():
+                        img_type = "Invoke"
+                        try:
+                            del x['generation_mode']
+                            del x['seamless_y']
+                            del x['positive_style_prompt']
+                            del x['negative_style_prompt']
+                            del x['regions']
+                            del x['canvas_v2_metadata']
+                            del x['app_version']
+                        except:
+                            pass
                     if "sui_image_params" in x.keys():
                         t = x['sui_image_params'].copy()
                         del x['sui_image_params']
@@ -391,7 +403,7 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         x = x|t
                         embed = Embed(title="Swarm Parameters", color=message.author.color)
                     else:
-                        embed = Embed(title="Nai Parameters", color=message.author.color)
+                        embed = Embed(title=f"{img_type} Parameters", color=message.author.color)
                     if "Comment" in x.keys():
                         t = x['Comment'].replace(r'\"', '"')
                         t = json.loads(t)
@@ -493,8 +505,20 @@ async def formatted(ctx: ApplicationContext, message: Message):
             img_type = "ComfyUI" if "\"inputs\"" in data else "NovelAI"
             
             i = 0
-            if img_type=="NovelAI":
+            if img_type!="ComfyUI":
                 x = json.loads(data)
+                if "generation_mode" in x.keys():
+                    img_type = "Invoke"
+                    try:
+                        del x['generation_mode']
+                        del x['seamless_y']
+                        del x['positive_style_prompt']
+                        del x['negative_style_prompt']
+                        del x['regions']
+                        del x['canvas_v2_metadata']
+                        del x['app_version']
+                    except:
+                        pass
                 if "sui_image_params" in x.keys():
                     t = x['sui_image_params'].copy()
                     del x['sui_image_params']
