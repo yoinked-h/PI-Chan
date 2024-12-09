@@ -51,7 +51,7 @@ def comfyui_get_data(dat):
                 aa.append({"val": value['inputs']['text'][:1023],
                         "type": value['_meta']['title']})
         return aa
-    except ValueError as e:
+    except Exception as e:
         print(e)
         return []
 
