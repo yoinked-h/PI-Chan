@@ -325,6 +325,30 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
         print(f"{type(error).__name__}: {error}")
 
 
+async def predict_prompt(ctx, attachment):
+    """
+    Predicts prompt and sends to user DMs.
+    This is now a helper function, called by the task.
+    """
+    try:
+        user_dm = await client.get_user(ctx.user_id).create_dm()
+        embed = Embed(title="Predicted Prompt", color=ctx.member.color)
+        embed = embed.set_image(url=attachment.url)
+        predicted = GRADCL.predict(gradio_client.file(attachment.url),
+                                "chen-evangelion",
+                                0.45, True, True, api_name="/classify")[1]
+            #correction :anger: :sob:
+        predicted = f"```\n{predicted}\n```"
+        embed.add_field(name="DashSpace", value=predicted)
+        predicted = predicted.replace(" ", ",")
+        predicted = predicted.replace("-", " ")
+        predicted = predicted.replace(",", ", ")
+        embed.add_field(name="CommaSpace", value=predicted)
+        await user_dm.send(embed=embed)
+    except Exception as e:
+        print(e)
+    
+
 @client.event
 async def on_raw_reaction_add(ctx: RawReactionActionEvent):
     """Send image metadata in reacted post to user DMs"""
@@ -339,23 +363,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
         return
     if ctx.emoji.name == CONFIG.get('GUESS', '❔'):
         # todo: make this cleaner
-        try:
-            user_dm = await client.get_user(ctx.user_id).create_dm()
-            embed = Embed(title="Predicted Prompt", color=message.author.color)
-            embed = embed.set_image(url=attachments[0].url)
-            predicted = GRADCL.predict(gradio_client.file(attachments[0].url),
-                                   "chen-evangelion",
-                                   0.45, True, True, api_name="/classify")[1]
-            #correction :anger: :sob:
-            predicted = f"```\n{predicted}\n```"
-            embed.add_field(name="DashSpace", value=predicted)
-            predicted = predicted.replace(" ", ",")
-            predicted = predicted.replace("-", " ")
-            predicted = predicted.replace(",", ", ")
-            embed.add_field(name="CommaSpace", value=predicted)
-            await user_dm.send(embed=embed)
-        except Exception as e:
-            print(e)
+        for attachment in attachments:
+            asyncio.create_task(predict_prompt(ctx, attachment))
         return
     metadata = OrderedDict()
     tasks = [read_attachment_metadata(i, attachment, metadata) for i, attachment in enumerate(attachments)]
