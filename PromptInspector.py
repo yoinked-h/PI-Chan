@@ -305,20 +305,28 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
     try:
         image_data = await attachment.read()
         with Image.open(io.BytesIO(image_data)) as img:
+            obtained = False
             if img.info:
                 if 'parameters' in img.info:
                     info = img.info['parameters']
+                    obtained = True
                 elif 'prompt' in img.info:
                     info = img.info['prompt']
+                    obtained = True
                 elif 'Comment' in img.info:
                     info = img.info["Comment"]
+                    obtained = True
                 elif 'invokeai_metadata' in img.info:
                     info = img.info['invokeai_metadata']
-                else: #comfy?
+                    obtained = True
+                elif 'srgb' not in img.info: #ohno
                     info = comfyui_get_data(img.info)
+                    obtained = True
             else:
                 info = read_info_from_image_stealth(img)
-                
+                obtained = True
+            if not obtained:
+                info = read_info_from_image_stealth(img) #final resort
             if info:
                 metadata[i] = info
     except Exception as error:
