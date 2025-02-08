@@ -334,7 +334,7 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
                 elif 'invokeai_metadata' in img.info:
                     info = img.info['invokeai_metadata']
                     obtained = True
-                elif 'adobe' in img.info: # drawthings
+                elif 'XML:com.adobe.xmp' in img.info: # drawthings
                     info = drawthings_drain(img.info)
                     obtained = True 
                 elif 'srgb' not in img.info: #ohno
@@ -438,7 +438,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         x = x|t
                         embed = Embed(title="Swarm Parameters", color=message.author.color)
                     else:
-                        embed = Embed(title=f"{img_type} Parameters", color=message.author.color)
+                        dt = 'DrawThings' if 'aesthetic_score' in x else img_type 
+                        embed = Embed(title=f"{dt} Parameters", color=message.author.color)
                     if "Comment" in x.keys():
                         t = x['Comment'].replace(r'\"', '"')
                         t = json.loads(t)
@@ -448,6 +449,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         del x['Comment']
                         del x['Description']
                     for k in x.keys():
+                        if 'original' in k:
+                            continue
                         i += 1
                         if i >= 25:
                             continue
@@ -562,7 +565,7 @@ async def formatted(ctx: ApplicationContext, message: Message):
                     x = x|t
                     embed = Embed(title="Swarm Parameters", color=message.author.color)
                 else:
-                    dt = 'DrawThings' if 'adobe' in x else 'Nai' 
+                    dt = 'DrawThings' if 'aesthetic_score' in x else 'Nai' 
                     embed = Embed(title=f"{dt} Parameters", color=message.author.color)
                 if "Comment" in x.keys():
                     t = x['Comment'].replace(r'\"', '"')
