@@ -15,7 +15,7 @@ from PIL import Image
 
 if not Path('config.toml').exists():
     #create a clone of the base
-    base_cfg = Path('config.base.toml').read_text()
+    base_cfg = Path('config.base.toml').read_text(encoding='utf-8')
     Path('config.toml').write_text(base_cfg)
 
 CONFIG = toml.load('config.toml')
@@ -299,6 +299,21 @@ class MyView(View):
         else:
             await interaction.followup.send(f"```json\n{self.metadata}```")
 
+def drawthings_drain(info):
+    p = info['XML:com.adobe.xmp'].split('<rdf:li xml:lang="x-default">')[2].split('</rdf:li>')[0]
+    p = json.loads(p)
+    remapped = {
+    'prompt': p['c'],
+    'negative_prompt': p['uc'],
+    'model': p['model'],
+    'seed': p['seed'],
+    'height': p['v2']['height'],
+    'width': p['v2']['width'],
+    'steps': p['steps'],
+    'original': p
+    }
+    return json.dumps(remapped)
+
 
 async def read_attachment_metadata(i: int, attachment: Attachment, metadata: OrderedDict):
     """Allows downloading in bulk"""
@@ -319,6 +334,9 @@ async def read_attachment_metadata(i: int, attachment: Attachment, metadata: Ord
                 elif 'invokeai_metadata' in img.info:
                     info = img.info['invokeai_metadata']
                     obtained = True
+                elif 'adobe' in img.info: # drawthings
+                    info = drawthings_drain(img.info)
+                    obtained = True 
                 elif 'srgb' not in img.info: #ohno
                     info = comfyui_get_data(img.info)
                     obtained = True
@@ -544,7 +562,8 @@ async def formatted(ctx: ApplicationContext, message: Message):
                     x = x|t
                     embed = Embed(title="Swarm Parameters", color=message.author.color)
                 else:
-                    embed = Embed(title="Nai Parameters", color=message.author.color)
+                    dt = 'DrawThings' if 'adobe' in x else 'Nai' 
+                    embed = Embed(title=f"{dt} Parameters", color=message.author.color)
                 if "Comment" in x.keys():
                     t = x['Comment'].replace(r'\"', '"')
                     t = json.loads(t)
