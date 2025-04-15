@@ -25,6 +25,277 @@ GRADCL = gradio_client.Client(CONFIG.get('GRADIO_BACKEND', "https://yoinked-da-n
 intents = Intents.default() | Intents.message_content | Intents.members
 client = commands.Bot(intents=intents)
 
+COMFY_METADATA_PROPAGATE_NONE = True
+
+comfy_nodes_propagation_data = [
+    {
+        "class_type": 'TagSeparator',
+        "mapping": {
+            0: "pos_prompt",
+            1: "neg_prompt",
+        }
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'ModelSamplingWaifuDiffusionV',
+                'Mahiro',
+                'ModelSamplingFlux',
+                'IPAdapterUnifiedLoader',
+                'IPAdapterAdvanced',
+                'IPAdapter',
+                'ApplyFluxIPAdapter',
+                'ApplyAdvancedFluxIPAdapter',
+                'IPAdapterAdvanced',
+                'IPAdapterAdvanced',
+            ],
+        },
+        "mapping": {
+            0: "model",
+        }
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'ModelMergeSimple',
+                'ModelMergeAdd',
+                'ModelMergeSubstract',
+            ],
+        },
+        "mapping": {
+            0: {
+                "operation_type": "format",
+                "keys_to_use": ["model1", "model2"],
+                "operation_input": "{model1} [+] {model2}",
+            },
+        }
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'CheckpointLoaderSimple',
+                'Checkpoint Loader',
+            ],
+        },
+        "mapping": {
+            0: "ckpt_name",
+        }
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'UnetLoaderGGUF',
+                'UNETLoader',
+                'UnetLoaderGGUFAdvanced',
+            ],
+        },
+        "mapping": {
+            0: "unet_name"
+        }
+    },
+    {
+        "class_type": 'CLIPTextEncode',
+        "mapping": {
+            0: "text",
+            1: "clip",
+        }
+    },
+    {
+        "class_type": 'Seed',
+        "mapping": {
+            0: 'seed',
+        }
+    },
+    {
+        "class_type": 'KSampler',
+        "mapping": {
+            0: 'latent_image',
+        }
+    },
+    {
+        "class_type": 'VAEEncode',
+        "mapping": {
+            0: 'pixels',
+        }
+    },
+    {
+        "class_type": 'LatentBlend',
+        "mapping": {
+            0: 'samples1',
+        }
+    },
+    {
+        "class_type": 'VAEDecode',
+        "mapping": {
+            0: 'samples',
+        }
+    },
+    {
+        "class_type": 'ImageBlend',
+        "mapping": {
+            0: 'image1',
+        }
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'ImageScaleBy',
+                'ImageUpscaleWithModel',
+            ],
+        },
+        "mapping": {
+            0: 'image',
+        }
+    },
+    {
+        "class_type": 'EmptyLatentImage',
+        "mapping": {
+            0: {
+                "operation_type": "format",
+                "keys_to_use": ["width", "height"],
+                "operation_input": "{width} x {height}",
+            },
+        }
+    },
+    {
+        "class_type": 'LoraLoader',
+        "mapping": {
+            0: {
+                "operation_type": "format",
+                "keys_to_use": ["model", "lora_name", 'strength_model'],
+                "operation_input": "{model}\n+ LoRA: <{lora_name}:{strength_model}>",
+            }
+        }
+    },
+]
+
+target_comfy_nodes = [
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'KSampler',
+                'KSampler (WAS)',
+            ]
+        },
+        "inputs": [
+            "model",
+            "positive",
+            "negative",
+            "latent_image",
+            "sampler_name",
+            "scheduler",
+            "cfg",
+            "steps",
+            "seed",
+        ]
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'KSamplerAdvanced',
+            ]
+        },
+        "inputs": [
+            "model",
+            "positive",
+            "negative",
+            "latent_image",
+            "sampler_name",
+            "scheduler",
+            "cfg",
+            "steps",
+            "noise_seed",
+        ]
+    },
+]
+
+format_of_comfy_fields_to_types = {
+    'models': ['{model}'],
+    'pos_prompts': ['{positive}'],
+    'neg_prompts': ['{negative}'],
+    'img_gen_sizes': ['{latent_image}'],
+    'sampler_configs': ['{sampler_name} @ {scheduler} @ cfg: {cfg:.2f} @ {steps} steps'],
+    'seeds': ['{seed}', '{noise_seed}'],
+}
+
+comfy_fields_pretty_names = {
+    'models': "Model",
+    'pos_prompts': "Prompt",
+    'neg_prompts': "Negative Prompt",
+    'img_gen_sizes': "Size",
+    'sampler_configs': "Sampler Config",
+    'seeds': "Seed",
+}
+
+def custom_operation(operation_data, input_object):
+    if operation_data['operation_type'] == "any_of_inputs":
+        return input_object in operation_data['operation_input']
+
+    elif operation_data['operation_type'] == "format":
+        format_str = operation_data['operation_input']
+        return format_str.format(**input_object)
+
+    elif operation_data['operation_type'] == "caseless_contains":
+        return operation_data['operation_input'].lower() in input_object.lower()
+
+
+def resolve_class_type(node_type, lf):
+    for nlf in lf:
+        if isinstance(nlf['class_type'], str):
+            if nlf['class_type'] == node_type:
+                return nlf
+
+        else:
+            if custom_operation(nlf['class_type'], node_type):
+                return nlf
+
+    # print('Unknown bypass:', node_type)
+    return None
+
+def is_comfy_link(obj):
+    if isinstance(obj, list) and len(obj) == 2:
+        return isinstance(obj[0], str) and isinstance(obj[1], int)
+
+def resolve_bypasses(comfy_link, dat):
+    if comfy_link is None:
+        return None
+
+    if not is_comfy_link(comfy_link):
+        return comfy_link
+
+    linked_node_id = comfy_link[0]
+    linked_node_input_id = comfy_link[1]
+
+    linked_node = dat[linked_node_id]
+    linked_node_type = linked_node['class_type']
+
+    m = resolve_class_type(linked_node_type, comfy_nodes_propagation_data)
+    if m is None:
+        return None
+
+    mapping = m['mapping']
+    mapping_result = mapping[linked_node_input_id]
+
+    if isinstance(mapping_result, str):
+        new_link = linked_node['inputs'][mapping_result]
+        return resolve_bypasses(new_link, dat)
+    else:
+        resolved_keys = {}
+        for key in mapping_result['keys_to_use']:
+            resolved_keys[key] = resolve_bypasses(linked_node['inputs'][key], dat)
+            if COMFY_METADATA_PROPAGATE_NONE and resolved_keys[key] is None:
+                return None
+
+        return custom_operation(mapping_result, resolved_keys)
+
+
 def comfyui_get_data(dat):
     """try and extract the prompt/loras/checkpoints in comfy metadata / handle invokeai metadata"""
     if "generation_mode" in dat:
@@ -36,20 +307,42 @@ def comfyui_get_data(dat):
     try:
         aa = []
         dat = json.loads(dat)
-        for _, value in dat.items():
-            if value['class_type'] == "CLIPTextEncode":
-                aa.append({"val": value['inputs']['text'][:1023],
-                        "type": "prompt"})
-            elif value['class_type'] == "CheckpointLoaderSimple":
-                aa.append({"val": value['inputs']['ckpt_name'][:1023],
-                        "type": "model"})
-            elif value['class_type'] == "LoraLoader":
-                aa.append({"val": value['inputs']['lora_name'][:1023],
-                        "type": "lora"})
-            #metadata nodes
-            elif '_meta' in value.keys():
-                aa.append({"val": value['inputs']['text'][:1023],
-                        "type": value['_meta']['title']})
+
+        needed_nodes = {}
+        for id, node in dat.items():
+            if node is not None and 'class_type' in node:
+                nlf = resolve_class_type(node['class_type'], target_comfy_nodes)
+                if nlf is not None:
+                    node['pi_chan_meta'] = {
+                        'needed_inputs': nlf['inputs'],
+                        'results': {}
+                    }
+                    needed_nodes[id] = node
+
+        for id, node in needed_nodes.items():
+            for input_key in node['pi_chan_meta']['needed_inputs']:
+                if input_key in node['inputs']:
+                    node['pi_chan_meta']['results'][input_key] = resolve_bypasses(node['inputs'][input_key], dat)
+
+        relevant_results = []
+        for id, node in needed_nodes.items():
+            relevant_results.append(node['pi_chan_meta']['results'])
+
+        relevant_results_by_type = {}
+        for key, formats in format_of_comfy_fields_to_types.items():
+            relevant_results_by_type[key] = list()
+            for relevant_result in relevant_results:
+                for format in formats:
+                    try:
+                        relevant_results_by_type[key].append(format.format(**relevant_result))
+                    except:
+                        pass
+            relevant_results_by_type[key] = list(dict.fromkeys(relevant_results_by_type[key]))
+
+        for key, vals in relevant_results_by_type.items():
+            for val in vals:
+                aa.append({"val": val[:1023], "type": comfy_fields_pretty_names[key]})
+
         return aa
     except Exception as e:
         print(e)
