@@ -759,7 +759,10 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         i += 1
                         if i >= 25:
                             continue
-                        embed.add_field(name=f"{dax['type']} [{enum+1}]", value=dax['val'], inline=True)
+                        inline = False if 'prompt' in dax['type'].lower() else True
+                        #correction here too :anger: :sob:
+                        dax['val'] = f"```\n{str(dax['val'])[:1000]}\n```"
+                        embed.add_field(name=f"{dax['type']} [{enum+1}]", value=dax['val'], inline=inline)
                 embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
                 embed.set_image(url=attachment.url)
                 with io.StringIO() as f:
