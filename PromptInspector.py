@@ -15,7 +15,7 @@ from PIL import Image
 
 if not Path('config.toml').exists():
     #create a clone of the base
-    base_cfg = Path('config.base.toml').read_text()
+    base_cfg = Path('config.base.toml').read_text(encoding='utf-8')
     Path('config.toml').write_text(base_cfg)
 
 CONFIG = toml.load('config.toml')
@@ -24,6 +24,277 @@ SCAN_LIMIT_BYTES = CONFIG.get('SCAN_LIMIT_BYTES', 40 * 1024**2)  # Default 40 MB
 GRADCL = gradio_client.Client(CONFIG.get('GRADIO_BACKEND', "https://yoinked-da-nsfw-checker.hf.space/"))
 intents = Intents.default() | Intents.message_content | Intents.members
 client = commands.Bot(intents=intents)
+
+COMFY_METADATA_PROPAGATE_NONE = True
+
+comfy_nodes_propagation_data = [
+    {
+        "class_type": 'TagSeparator',
+        "mapping": {
+            0: "pos_prompt",
+            1: "neg_prompt",
+        }
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'ModelSamplingWaifuDiffusionV',
+                'Mahiro',
+                'ModelSamplingFlux',
+                'IPAdapterUnifiedLoader',
+                'IPAdapterAdvanced',
+                'IPAdapter',
+                'ApplyFluxIPAdapter',
+                'ApplyAdvancedFluxIPAdapter',
+                'IPAdapterAdvanced',
+                'IPAdapterAdvanced',
+            ],
+        },
+        "mapping": {
+            0: "model",
+        }
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'ModelMergeSimple',
+                'ModelMergeAdd',
+                'ModelMergeSubstract',
+            ],
+        },
+        "mapping": {
+            0: {
+                "operation_type": "format",
+                "keys_to_use": ["model1", "model2"],
+                "operation_input": "{model1} [+] {model2}",
+            },
+        }
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'CheckpointLoaderSimple',
+                'Checkpoint Loader',
+            ],
+        },
+        "mapping": {
+            0: "ckpt_name",
+        }
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'UnetLoaderGGUF',
+                'UNETLoader',
+                'UnetLoaderGGUFAdvanced',
+            ],
+        },
+        "mapping": {
+            0: "unet_name"
+        }
+    },
+    {
+        "class_type": 'CLIPTextEncode',
+        "mapping": {
+            0: "text",
+            1: "clip",
+        }
+    },
+    {
+        "class_type": 'Seed',
+        "mapping": {
+            0: 'seed',
+        }
+    },
+    {
+        "class_type": 'KSampler',
+        "mapping": {
+            0: 'latent_image',
+        }
+    },
+    {
+        "class_type": 'VAEEncode',
+        "mapping": {
+            0: 'pixels',
+        }
+    },
+    {
+        "class_type": 'LatentBlend',
+        "mapping": {
+            0: 'samples1',
+        }
+    },
+    {
+        "class_type": 'VAEDecode',
+        "mapping": {
+            0: 'samples',
+        }
+    },
+    {
+        "class_type": 'ImageBlend',
+        "mapping": {
+            0: 'image1',
+        }
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'ImageScaleBy',
+                'ImageUpscaleWithModel',
+            ],
+        },
+        "mapping": {
+            0: 'image',
+        }
+    },
+    {
+        "class_type": 'EmptyLatentImage',
+        "mapping": {
+            0: {
+                "operation_type": "format",
+                "keys_to_use": ["width", "height"],
+                "operation_input": "{width} x {height}",
+            },
+        }
+    },
+    {
+        "class_type": 'LoraLoader',
+        "mapping": {
+            0: {
+                "operation_type": "format",
+                "keys_to_use": ["model", "lora_name", 'strength_model'],
+                "operation_input": "{model}\n+ LoRA: <{lora_name}:{strength_model}>",
+            }
+        }
+    },
+]
+
+target_comfy_nodes = [
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'KSampler',
+                'KSampler (WAS)',
+            ]
+        },
+        "inputs": [
+            "model",
+            "positive",
+            "negative",
+            "latent_image",
+            "sampler_name",
+            "scheduler",
+            "cfg",
+            "steps",
+            "seed",
+        ]
+    },
+    {
+        "class_type": {
+            "operation_type": "any_of_inputs",
+            "operation_input": [
+                'KSamplerAdvanced',
+            ]
+        },
+        "inputs": [
+            "model",
+            "positive",
+            "negative",
+            "latent_image",
+            "sampler_name",
+            "scheduler",
+            "cfg",
+            "steps",
+            "noise_seed",
+        ]
+    },
+]
+
+format_of_comfy_fields_to_types = {
+    'models': ['{model}'],
+    'pos_prompts': ['{positive}'],
+    'neg_prompts': ['{negative}'],
+    'img_gen_sizes': ['{latent_image}'],
+    'sampler_configs': ['{sampler_name} @ {scheduler} @ cfg: {cfg:.2f} @ {steps} steps'],
+    'seeds': ['{seed}', '{noise_seed}'],
+}
+
+comfy_fields_pretty_names = {
+    'models': "Model",
+    'pos_prompts': "Prompt",
+    'neg_prompts': "Negative Prompt",
+    'img_gen_sizes': "Size",
+    'sampler_configs': "Sampler Config",
+    'seeds': "Seed",
+}
+
+def custom_operation(operation_data, input_object):
+    if operation_data['operation_type'] == "any_of_inputs":
+        return input_object in operation_data['operation_input']
+
+    elif operation_data['operation_type'] == "format":
+        format_str = operation_data['operation_input']
+        return format_str.format(**input_object)
+
+    elif operation_data['operation_type'] == "caseless_contains":
+        return operation_data['operation_input'].lower() in input_object.lower()
+
+
+def resolve_class_type(node_type, lf):
+    for nlf in lf:
+        if isinstance(nlf['class_type'], str):
+            if nlf['class_type'] == node_type:
+                return nlf
+
+        else:
+            if custom_operation(nlf['class_type'], node_type):
+                return nlf
+
+    # print('Unknown bypass:', node_type)
+    return None
+
+def is_comfy_link(obj):
+    if isinstance(obj, list) and len(obj) == 2:
+        return isinstance(obj[0], str) and isinstance(obj[1], int)
+
+def resolve_bypasses(comfy_link, dat):
+    if comfy_link is None:
+        return None
+
+    if not is_comfy_link(comfy_link):
+        return comfy_link
+
+    linked_node_id = comfy_link[0]
+    linked_node_input_id = comfy_link[1]
+
+    linked_node = dat[linked_node_id]
+    linked_node_type = linked_node['class_type']
+
+    m = resolve_class_type(linked_node_type, comfy_nodes_propagation_data)
+    if m is None:
+        return None
+
+    mapping = m['mapping']
+    mapping_result = mapping[linked_node_input_id]
+
+    if isinstance(mapping_result, str):
+        new_link = linked_node['inputs'][mapping_result]
+        return resolve_bypasses(new_link, dat)
+    else:
+        resolved_keys = {}
+        for key in mapping_result['keys_to_use']:
+            resolved_keys[key] = resolve_bypasses(linked_node['inputs'][key], dat)
+            if COMFY_METADATA_PROPAGATE_NONE and resolved_keys[key] is None:
+                return None
+
+        return custom_operation(mapping_result, resolved_keys)
+
 
 def comfyui_get_data(dat):
     """try and extract the prompt/loras/checkpoints in comfy metadata / handle invokeai metadata"""
@@ -36,22 +307,44 @@ def comfyui_get_data(dat):
     try:
         aa = []
         dat = json.loads(dat)
-        for _, value in dat.items():
-            if value['class_type'] == "CLIPTextEncode":
-                aa.append({"val": value['inputs']['text'][:1023],
-                        "type": "prompt"})
-            elif value['class_type'] == "CheckpointLoaderSimple":
-                aa.append({"val": value['inputs']['ckpt_name'][:1023],
-                        "type": "model"})
-            elif value['class_type'] == "LoraLoader":
-                aa.append({"val": value['inputs']['lora_name'][:1023],
-                        "type": "lora"})
-            #metadata nodes
-            elif '_meta' in value.keys():
-                aa.append({"val": value['inputs']['text'][:1023],
-                        "type": value['_meta']['title']})
+
+        needed_nodes = {}
+        for id, node in dat.items():
+            if node is not None and 'class_type' in node:
+                nlf = resolve_class_type(node['class_type'], target_comfy_nodes)
+                if nlf is not None:
+                    node['pi_chan_meta'] = {
+                        'needed_inputs': nlf['inputs'],
+                        'results': {}
+                    }
+                    needed_nodes[id] = node
+
+        for id, node in needed_nodes.items():
+            for input_key in node['pi_chan_meta']['needed_inputs']:
+                if input_key in node['inputs']:
+                    node['pi_chan_meta']['results'][input_key] = resolve_bypasses(node['inputs'][input_key], dat)
+
+        relevant_results = []
+        for id, node in needed_nodes.items():
+            relevant_results.append(node['pi_chan_meta']['results'])
+
+        relevant_results_by_type = {}
+        for key, formats in format_of_comfy_fields_to_types.items():
+            relevant_results_by_type[key] = list()
+            for relevant_result in relevant_results:
+                for format in formats:
+                    try:
+                        relevant_results_by_type[key].append(format.format(**relevant_result))
+                    except:
+                        pass
+            relevant_results_by_type[key] = list(dict.fromkeys(relevant_results_by_type[key]))
+
+        for key, vals in relevant_results_by_type.items():
+            for val in vals:
+                aa.append({"val": val[:1023], "type": comfy_fields_pretty_names[key]})
+
         return aa
-    except ValueError as e:
+    except Exception as e:
         print(e)
         return []
 
@@ -299,31 +592,81 @@ class MyView(View):
         else:
             await interaction.followup.send(f"```json\n{self.metadata}```")
 
+def drawthings_drain(info):
+    p = info['XML:com.adobe.xmp'].split('<rdf:li xml:lang="x-default">')[2].split('</rdf:li>')[0]
+    p = json.loads(p)
+    remapped = {
+    'prompt': p['c'],
+    'negative_prompt': p['uc'],
+    'model': p['model'],
+    'seed': p['seed'],
+    'height': p['v2']['height'],
+    'width': p['v2']['width'],
+    'steps': p['steps'],
+    'original': p
+    }
+    return json.dumps(remapped)
+
 
 async def read_attachment_metadata(i: int, attachment: Attachment, metadata: OrderedDict):
     """Allows downloading in bulk"""
     try:
         image_data = await attachment.read()
         with Image.open(io.BytesIO(image_data)) as img:
+            obtained = False
             if img.info:
                 if 'parameters' in img.info:
                     info = img.info['parameters']
+                    obtained = True
                 elif 'prompt' in img.info:
                     info = img.info['prompt']
+                    obtained = True
                 elif 'Comment' in img.info:
                     info = img.info["Comment"]
+                    obtained = True
                 elif 'invokeai_metadata' in img.info:
                     info = img.info['invokeai_metadata']
-                else: #comfy?
+                    obtained = True
+                elif 'XML:com.adobe.xmp' in img.info: # drawthings
+                    info = drawthings_drain(img.info)
+                    obtained = True 
+                elif 'srgb' not in img.info: #ohno
                     info = comfyui_get_data(img.info)
+                    obtained = True
             else:
                 info = read_info_from_image_stealth(img)
-                
+                obtained = True
+            if not obtained:
+                info = read_info_from_image_stealth(img) #final resort
             if info:
                 metadata[i] = info
     except Exception as error:
         print(f"{type(error).__name__}: {error}")
 
+
+async def predict_prompt(ctx, attachment):
+    """
+    Predicts prompt and sends to user DMs.
+    This is now a helper function, called by the task.
+    """
+    try:
+        user_dm = await client.get_user(ctx.user_id).create_dm()
+        embed = Embed(title="Predicted Prompt", color=ctx.member.color)
+        embed = embed.set_image(url=attachment.url)
+        predicted = GRADCL.predict(gradio_client.file(attachment.url),
+                                "chen-evangelion",
+                                0.45, True, True, api_name="/classify")[1]
+            #correction :anger: :sob:
+        predicted = f"```\n{predicted}\n```"
+        embed.add_field(name="DashSpace", value=predicted)
+        predicted = predicted.replace(" ", ",")
+        predicted = predicted.replace("-", " ")
+        predicted = predicted.replace(",", ", ")
+        embed.add_field(name="CommaSpace", value=predicted)
+        await user_dm.send(embed=embed)
+    except Exception as e:
+        print(e)
+    
 
 @client.event
 async def on_raw_reaction_add(ctx: RawReactionActionEvent):
@@ -339,23 +682,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
         return
     if ctx.emoji.name == CONFIG.get('GUESS', '❔'):
         # todo: make this cleaner
-        try:
-            user_dm = await client.get_user(ctx.user_id).create_dm()
-            embed = Embed(title="Predicted Prompt", color=message.author.color)
-            embed = embed.set_image(url=attachments[0].url)
-            predicted = GRADCL.predict(gradio_client.file(attachments[0].url),
-                                   "chen-evangelion",
-                                   0.45, True, True, api_name="/classify")[1]
-            #correction :anger: :sob:
-            predicted = f"```\n{predicted}\n```"
-            embed.add_field(name="DashSpace", value=predicted)
-            predicted = predicted.replace(" ", ",")
-            predicted = predicted.replace("-", " ")
-            predicted = predicted.replace(",", ", ")
-            embed.add_field(name="CommaSpace", value=predicted)
-            await user_dm.send(embed=embed)
-        except Exception as e:
-            print(e)
+        for attachment in attachments:
+            asyncio.create_task(predict_prompt(ctx, attachment))
         return
     metadata = OrderedDict()
     tasks = [read_attachment_metadata(i, attachment, metadata) for i, attachment in enumerate(attachments)]
@@ -403,7 +731,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         x = x|t
                         embed = Embed(title="Swarm Parameters", color=message.author.color)
                     else:
-                        embed = Embed(title=f"{img_type} Parameters", color=message.author.color)
+                        dt = 'DrawThings' if 'aesthetic_score' in x else img_type 
+                        embed = Embed(title=f"{dt} Parameters", color=message.author.color)
                     if "Comment" in x.keys():
                         t = x['Comment'].replace(r'\"', '"')
                         t = json.loads(t)
@@ -413,6 +742,8 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         del x['Comment']
                         del x['Description']
                     for k in x.keys():
+                        if 'original' in k:
+                            continue
                         i += 1
                         if i >= 25:
                             continue
@@ -428,7 +759,10 @@ async def on_raw_reaction_add(ctx: RawReactionActionEvent):
                         i += 1
                         if i >= 25:
                             continue
-                        embed.add_field(name=f"{dax['type']} [{enum+1}]", value=dax['val'], inline=True)
+                        inline = False if 'prompt' in dax['type'].lower() else True
+                        #correction here too :anger: :sob:
+                        dax['val'] = f"```\n{str(dax['val'])[:1000]}\n```"
+                        embed.add_field(name=f"{dax['type']} [{enum+1}]", value=dax['val'], inline=inline)
                 embed.set_footer(text=f'Posted by {message.author}', icon_url=message.author.display_avatar)
                 embed.set_image(url=attachment.url)
                 with io.StringIO() as f:
@@ -527,7 +861,8 @@ async def formatted(ctx: ApplicationContext, message: Message):
                     x = x|t
                     embed = Embed(title="Swarm Parameters", color=message.author.color)
                 else:
-                    embed = Embed(title="Nai Parameters", color=message.author.color)
+                    dt = 'DrawThings' if 'aesthetic_score' in x else 'Nai' 
+                    embed = Embed(title=f"{dt} Parameters", color=message.author.color)
                 if "Comment" in x.keys():
                     t = x['Comment'].replace(r'\"', '"')
                     t = json.loads(t)
