@@ -543,12 +543,11 @@ async def process_and_display_metadata(
                     elif "sui_image_params" in params_dict: # SwarmUI
                         img_type = "SwarmUI"
                         swarm_params = params_dict.pop('sui_image_params', {})
+                        params_dict = {}
                         # Merge swarm params into main dict (convert values to str for safety)
                         for key, val in swarm_params.items():
-                            if "sui_" in key: # Remove swarmUI prefix
-                                # Don't add it to the dict
-                                continue
-                            params_dict[f"SUI: {key}"] = str(val) # Prefix to avoid collision
+                            if "sui_" not in key: 
+                                params_dict[key] = str(val)
 
                     elif "aesthetic_score" in params_dict or 'Guidance Mode' in params_dict: # DrawThings (already parsed to JSON)
                         img_type = "DrawThings"
