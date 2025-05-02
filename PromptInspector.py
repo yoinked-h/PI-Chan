@@ -154,11 +154,8 @@ def create_param_embed(embed_dict: dict, message_author: discord.User | discord.
     embed.set_footer(text=f'Posted by {message_author}', icon_url=message_author.display_avatar)
     return embed
 
-
-def read_info_from_image_stealth(image: Image.Image) -> str | None:
-    """Try and read stealth PNGInfo."""
-    # (Keep the original function implementation here)
-    # ... unchanged ...
+def read_info_from_image_stealth(image: Image.Image):
+    """Try and read stealth PNGInfo"""
     width, height = image.size
     pixels = image.load()
 
@@ -178,160 +175,94 @@ def read_info_from_image_stealth(image: Image.Image) -> str | None:
     for x in range(width):
         for y in range(height):
             if has_alpha:
-                # Ensure pixel data is accessible, handle potential palette modes indirectly if needed
-                try:
-                    pixel_tuple = pixels[x, y]
-                    if len(pixel_tuple) == 4:
-                        r, g, b, a = pixel_tuple
-                    else: # Handle RGB case even if mode claims RGBA (rare issue)
-                        r, g, b = pixel_tuple[:3]
-                        a = 255 # Assume full opacity
-                except IndexError: # Handle cases like P mode where direct RGBA isn't available
-                    # Convert to RGBA if needed, this is inefficient inside the loop
-                    # Consider converting the image *once* before the loop if this is common
-                    # For now, we'll skip alpha channel reading if it fails
-                    has_alpha = False # Fallback
-                    r, g, b = image.convert("RGB").getpixel((x,y)) # Get RGB
-                except TypeError: # Handle cases where pixel is not a tuple (e.g., L mode)
-                    # Similar to above, convert or skip
-                    has_alpha = False
-                    rgb_image = image.convert("RGB")
-                    r, g, b = rgb_image.getpixel((x, y))
-
-
-                if has_alpha:
-                    buffer_a += str(a & 1)
-                    index_a += 1
-            else: # RGB mode or fallback
-                try:
-                    r, g, b = pixels[x, y][:3] # Ensure we only take 3 values
-                except TypeError: # Handle non-tuple pixels (e.g. L mode)
-                    try:
-                        rgb_image = image.convert("RGB")
-                        r, g, b = rgb_image.getpixel((x,y))
-                    except Exception as conversion_err:
-                        # print(f"Error converting pixel for stealth read: {conversion_err}")
-                        continue # Skip this pixel if conversion fails
-
-
+                r, g, b, a = pixels[x, y]
+                buffer_a += str(a & 1)
+                index_a += 1
+            else:
+                r, g, b = pixels[x, y]
             buffer_rgb += str(r & 1)
             buffer_rgb += str(g & 1)
             buffer_rgb += str(b & 1)
             index_rgb += 3
             if confirming_signature:
-                # Check alpha channel first if available
-                if has_alpha and index_a == len("stealth_pnginfo") * 8:
-                    try:
-                        decoded_sig_bytes = bytearray(int(buffer_a[i : i + 8], 2) for i in range(0, len(buffer_a), 8))
-                        decoded_sig = decoded_sig_bytes.decode("utf-8", errors="ignore")
-                        if decoded_sig in {"stealth_pnginfo", "stealth_pngcomp"}:
-                            confirming_signature = False
-                            sig_confirmed = True
-                            reading_param_len = True
-                            mode = "alpha"
-                            if decoded_sig == "stealth_pngcomp":
-                                compressed = True
-                            buffer_a = ""
-                            index_a = 0
-                            buffer_rgb = "" # Clear rgb buffer too? Maybe not needed.
-                            index_rgb = 0
-                        # else: # Not a valid signature in alpha, continue checking RGB
-                    except Exception as decode_err:
-                        # print(f"Error decoding alpha signature: {decode_err}")
-                        pass # Continue checking RGB
-
-                # Check RGB channel if alpha didn't match or wasn't checked
-                # Need to reach the required length in RGB buffer
-                if index_rgb >= len("stealth_pnginfo") * 8:
-                    # Take only the required number of bits
-                    relevant_rgb_bits = buffer_rgb[:len("stealth_pnginfo")*8]
-                    try:
-                        decoded_sig_bytes = bytearray(int(relevant_rgb_bits[i : i + 8], 2) for i in range(0, len(relevant_rgb_bits), 8))
-                        decoded_sig = decoded_sig_bytes.decode("utf-8", errors="ignore")
-                        if decoded_sig in {"stealth_rgbinfo", "stealth_rgbcomp"}:
-                            confirming_signature = False
-                            sig_confirmed = True
-                            reading_param_len = True
-                            mode = "rgb"
-                            if decoded_sig == "stealth_rgbcomp":
-                                compressed = True
-                            # Keep the leftover bits in the buffer for the next stage
-                            buffer_rgb = buffer_rgb[len("stealth_pnginfo")*8:]
-                            index_rgb = len(buffer_rgb)
-                            buffer_a = "" # Clear alpha buffer
-                            index_a = 0
-                        else:
-                            # Neither alpha nor RGB signature matched after enough bits
-                            read_end = True
-                            break # Exit inner loop
-                    except Exception as decode_err:
-                        # print(f"Error decoding rgb signature: {decode_err}")
+                if index_a == len("stealth_pnginfo") * 8:
+                    decoded_sig = bytearray(
+                        int(buffer_a[i : i + 8], 2) for i in range(0, len(buffer_a), 8)
+                    ).decode("utf-8", errors="ignore")
+                    if decoded_sig in {"stealth_pnginfo", "stealth_pngcomp"}:
+                        confirming_signature = False
+                        sig_confirmed = True
+                        reading_param_len = True
+                        mode = "alpha"
+                        if decoded_sig == "stealth_pngcomp":
+                            compressed = True
+                        buffer_a = ""
+                        index_a = 0
+                    else:
                         read_end = True
-                        break # Exit inner loop
-
+                        break
+                elif index_rgb == len("stealth_pnginfo") * 8:
+                    decoded_sig = bytearray(
+                        int(buffer_rgb[i : i + 8], 2) for i in range(0, len(buffer_rgb), 8)
+                    ).decode("utf-8", errors="ignore")
+                    if decoded_sig in {"stealth_rgbinfo", "stealth_rgbcomp"}:
+                        confirming_signature = False
+                        sig_confirmed = True
+                        reading_param_len = True
+                        mode = "rgb"
+                        if decoded_sig == "stealth_rgbcomp":
+                            compressed = True
+                        buffer_rgb = ""
+                        index_rgb = 0
             elif reading_param_len:
                 if mode == "alpha":
                     if index_a == 32:
-                        try:
-                            param_len = int(buffer_a, 2)
-                            reading_param_len = False
-                            reading_param = True
-                            buffer_a = ""
-                            index_a = 0
-                        except ValueError:
-                            # print("Error converting alpha param length.")
-                            read_end = True; break
-                else: # mode == "rgb"
-                    if index_rgb >= 32: # Need 32 bits for length
-                        len_bits = buffer_rgb[:32]
-                        try:
-                            param_len = int(len_bits, 2)
-                            reading_param_len = False
-                            reading_param = True
-                            buffer_rgb = buffer_rgb[32:] # Keep leftover bits
-                            index_rgb = len(buffer_rgb)
-                        except ValueError:
-                            # print("Error converting rgb param length.")
-                            read_end = True; break
+                        param_len = int(buffer_a, 2)
+                        reading_param_len = False
+                        reading_param = True
+                        buffer_a = ""
+                        index_a = 0
+                else:
+                    if index_rgb == 33:
+                        pop = buffer_rgb[-1]
+                        buffer_rgb = buffer_rgb[:-1]
+                        param_len = int(buffer_rgb, 2)
+                        reading_param_len = False
+                        reading_param = True
+                        buffer_rgb = pop
+                        index_rgb = 1
             elif reading_param:
                 if mode == "alpha":
-                    if index_a >= param_len: # Check if we have enough bits
-                        binary_data = buffer_a[:param_len] # Take only needed bits
+                    if index_a == param_len:
+                        binary_data = buffer_a
                         read_end = True
-                        break # Exit inner loop
-                else: # mode == "rgb"
+                        break
+                else:
                     if index_rgb >= param_len:
-                        binary_data = buffer_rgb[:param_len]
+                        diff = param_len - index_rgb
+                        if diff < 0:
+                            buffer_rgb = buffer_rgb[:diff]
+                        binary_data = buffer_rgb
                         read_end = True
-                        break # Exit inner loop
+                        break
             else:
-                # Should not be reached if logic is correct
+                # impossible
                 read_end = True
                 break
         if read_end:
-            break # Exit outer loop
-
+            break
     if sig_confirmed and binary_data != "":
+        # Convert binary string to UTF-8 encoded text
+        byte_data = bytearray(int(binary_data[i : i + 8], 2) for i in range(0, len(binary_data), 8))
         try:
-            byte_data = bytearray(int(binary_data[i : i + 8], 2) for i in range(0, len(binary_data), 8))
             if compressed:
-                decoded_data = gzip.decompress(bytes(byte_data)).decode("utf-8", errors="ignore")
+                decoded_data = gzip.decompress(bytes(byte_data)).decode("utf-8")
             else:
                 decoded_data = byte_data.decode("utf-8", errors="ignore")
             return decoded_data
-        except gzip.BadGzipFile:
-            # print("Stealth info: Bad gzip file.")
-            pass # Try decoding as uncompressed text?
-            try:
-                return byte_data.decode("utf-8", errors="ignore")
-            except Exception: pass
-        except UnicodeDecodeError:
-            # print("Stealth info: Unicode decode error.")
-            pass
         except Exception as e:
-            # print(f"Stealth info: Error during final decode/decompress: {e}")
+            print(e)
             pass
-
     return None
 
 
