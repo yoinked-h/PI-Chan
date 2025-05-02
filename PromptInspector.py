@@ -266,7 +266,7 @@ def read_info_from_image_stealth(image: Image.Image):
     return None
 
 
-def drawthings_drain(info: dict) -> str | None:
+def drawthings_drain(info: dict):
     """Extracts and formats parameters from DrawThings metadata."""
     try:
         # Path through the typical DrawThings XMP structure
@@ -312,7 +312,7 @@ def drawthings_drain(info: dict) -> str | None:
         return None
 
 
-async def read_attachment_metadata(attachment: Attachment) -> tuple[str | list[dict] | None, str | None]:
+async def read_attachment_metadata(attachment: Attachment):
     """
     Reads metadata from a single image attachment.
     Returns a tuple: (metadata, error_message).
@@ -424,7 +424,7 @@ class MyView(View):
 async def process_and_display_metadata(
     message: Message,
     attachment: Attachment,
-    metadata: str | list[dict], # Can be string or parsed Comfy list
+    metadata,
     send_func: callable, # Coroutine to send the final message (e.g., ctx.respond, user_dm.send)
     attach_original_image: bool = False,
     add_details_button: bool = False # Specific to A1111 reaction context
@@ -797,7 +797,7 @@ async def privacy(ctx: ApplicationContext):
     base.add_field(name="Open Source", value="This bot is open source! Find the code [here](https://github.com/yoinked-h/PI-Chan).\nLicensed under the [MIT License](https://github.com/yoinked-h/PI-Chan/blob/main/LICENSE).\nBased on prior work by salt and NoCrypt.", inline=False)
 
     is_monitored = ctx.channel_id in monitored
-    footer_text = f"Maintained by <@444257402007846942> | This channel is {'monitored' if is_monitored else 'not monitored'}"
+    footer_text = f"Maintained by <@444257402007846942> | This channel is {'[monitored](<https://www.youtube.com/watch?v=kbNdx0yqbZE>)' if is_monitored else '[not monitored](https://www.youtube.com/watch?v=bnA9dt7Ul7c>)'}"
     icon = ctx.author.display_avatar if ctx.author else client.user.display_avatar
     base.set_footer(text=footer_text, icon_url=icon)
     # Bot avatar as image
