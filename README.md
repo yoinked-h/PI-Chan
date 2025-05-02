@@ -35,9 +35,9 @@ Install [this](https://github.com/ashen-sensored/sd_webui_stealth_pnginfo) if it
 
 |              Webui             | Supported? |
 |:------------------------------:|:----------:|
-| Automatic 1111, sd.next, forge |      ✅     |
+|      Automatic 1111-likes      |      ✅     |
 |             ComfyUI            |     🟨*     |
-|          Stable Swarm          |      ✅     |
+|             SwarmUI            |      ✅     |
 |             NovelAI            |      ✅     |
 |             Fooocus            |     ✅**    |
 
