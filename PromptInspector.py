@@ -118,7 +118,7 @@ def get_params_from_string(param_str: str) -> OrderedDict:
     return output_dict
 
 
-def create_param_embed(embed_dict: dict, message_author: discord.User | discord.Member, title: str = "Parameters") -> Embed:
+def create_param_embed(embed_dict: dict, message_author: discord.User, title: str = "Parameters") -> Embed:
     """Creates a Discord Embed from a dictionary of parameters."""
     embed = Embed(title=title, color=message_author.color if hasattr(message_author, 'color') else discord.Color.blue())
     i = 0
