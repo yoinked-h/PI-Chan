@@ -691,7 +691,7 @@ async def on_message(message: Message):
             # Fetch last 15 messages or until 10 minutes before this message
             history = []
             async for msg in message.channel.history(limit=50, before=message.created_at, oldest_first=False):
-                if (message.created_at - msg.created_at).total_seconds() > 600:
+                if (message.created_at - msg.created_at).total_seconds() > 600 or message.content.startswith(','):
                     break
                 history.append(msg)
                 if len(history) >= 14:
@@ -841,9 +841,12 @@ async def privacy(ctx: ApplicationContext):
     base.add_field(name="Open Source", value="This bot is open source! Find the code [here](https://github.com/yoinked-h/PI-Chan).\nLicensed under the [MIT License](https://github.com/yoinked-h/PI-Chan/blob/main/LICENSE).\nBased on prior work by salt and NoCrypt.", inline=False)
 
     is_monitored = ctx.channel_id in monitored
+    is_gemini_monitored = ctx.channel_id in chatmonitored
     footer_text = f"Maintained by <@444257402007846942> | This channel is {'[monitored](<https://www.youtube.com/watch?v=kbNdx0yqbZE>)' if is_monitored else '[not monitored](https://www.youtube.com/watch?v=bnA9dt7Ul7c>)'}"
     icon = ctx.author.display_avatar if ctx.author else client.user.display_avatar
     base.set_footer(text=footer_text, icon_url=icon)
+    if is_gemini_monitored:
+        base.add_field(name="Gemini Chat Integration", value="Note: this channel has gemini chat integration enabled! If you send a message [that doesnt start with just `,`] it can be sent to Gemini's API, and that has its own can of worms relating privacy.")
     # Bot avatar as image
     if client.user.display_avatar:
         base.set_thumbnail(url=client.user.display_avatar.url)
@@ -909,6 +912,9 @@ async def toggle_gemini_channel(
     Adds or removes a channel from GEMINIAPI_RESPONSIVE in config.toml.
     Requires Manage Messages permission.
     """
+    if ctx.author.id not in TRUSTED_UIDS:
+        await ctx.respond("You do not have permission to use this command.", ephemeral=True)
+        return
     target = channel or ctx.channel
     if not isinstance(target, discord.TextChannel):
         await ctx.respond("Invalid channel.", ephemeral=True)
@@ -934,7 +940,7 @@ async def toggle_gemini_channel(
             toml.dump(current, f)
 
         await ctx.respond(
-            f"{action} channel {target.mention} (`{channel_id}`) {preposition} prompt-guessing list.",
+            f"{action} channel {target.mention} (`{channel_id}`) {preposition} the list.",
             ephemeral=True
         )
 
