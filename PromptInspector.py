@@ -680,27 +680,6 @@ async def on_message(message: Message):
     if message.author.bot or not message.guild or message.channel.id not in monitored:
         return
 
-    if chatbotmodule is not None:
-        # Check if the message contains any chatbot triggers
-        print(f"Checking message for chatbot triggers: {message.content[:50]}...") # Debugging
-        triggers = chatbotmodule.triggers if hasattr(chatbotmodule, "triggers") else []
-        print(f"Chatbot triggers: {triggers}") # Debugging
-        if any(trigger in message.content.lower() for trigger in triggers):
-            # Fetch last 15 messages or until 10 minutes before this message
-            history = []
-            async for msg in message.channel.history(limit=50, before=message.created_at, oldest_first=False):
-                if (message.created_at - msg.created_at).total_seconds() > 600 or message.content.startswith(','):
-                    break
-                history.append(msg)
-                if len(history) >= 14:
-                    break
-                # Get chatbot response
-            try:
-                response = await asyncio.to_thread(chatbotmodule.chat_with_messages, history, client.user.id)
-                if response:
-                    await message.channel.send(response, reference=message)
-            except Exception as e:
-                print(f"Chatbot error: {e}")
 
     if message.attachments:
         # Check only the first valid attachment for performance
@@ -719,7 +698,33 @@ async def on_message(message: Message):
                     return # Stop if reaction fails
             # else: # No metadata found in this attachment, try next
                 # print(f"No metadata found in {attachment.filename}")
+    
+    if chatbotmodule is not None:
+        # Check if the message contains any chatbot triggers
+        triggers = chatbotmodule.triggers if hasattr(chatbotmodule, "triggers") else []
+        replied_to_bot = False
+        if message.reference and message.reference.resolved:
+            replied_message = message.reference.resolved
+            if replied_message.author and replied_message.author.id == client.user.id:
+                replied_to_bot = True
+        if any(trigger in message.content.lower() for trigger in triggers) or replied_to_bot:
+            async with message.channel.typing():
+                # Fetch last 15 messages or until 10 minutes before this message
+                history = [message]  # Start with the current message
+                async for msg in message.channel.history(limit=50, before=message.created_at, oldest_first=False):
+                    if (message.created_at - msg.created_at).total_seconds() > 600 or message.content.startswith(','):
+                        break
+                    history.append(msg)
+                    if len(history) >= 14:
+                        break
+                    # Get chatbot response
 
+                try:
+                    response = await asyncio.to_thread(chatbotmodule.chat_with_messages, history, client.user.id)
+                    if response:
+                        await message.channel.send(response, reference=message)
+                except Exception as e:
+                    print(f"Chatbot error: {e}")
 
 @client.event
 async def on_raw_reaction_add(payload: RawReactionActionEvent):

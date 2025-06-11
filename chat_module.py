@@ -40,13 +40,17 @@ class ChatModule:
                 attch = message.attachments[0].read()
                 mime = message.attachments[0].filename.lower().split('.')[-1]
                 if mime in IMG:
+                    if not message.content:
+                        tp.append(types.Part.from_text(
+                        text=message.author.name + ': ',
+                    ))
                     tp.append(types.Part.from_bytes(
                         data=attch,
                         mime_type=f'image/{mime}',
                     ))
-            if message.text:
+            if message.content:
                 tp.append(types.Part.from_text(
-                    text=message.author.name + ': ' + message.text.strip(),
+                    text=message.author.name + ': ' + message.content.strip(),
                 ))
             role = "user" if message.author.id != uid else "model"
             contents.append(types.Content(parts=tp, role=role))
