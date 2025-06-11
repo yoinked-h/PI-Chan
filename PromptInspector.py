@@ -80,8 +80,8 @@ chatbotmodule = None
 if chat_module.working:
     try:
         chatbotmodule = chat_module.ChatModule(
-            CONFIG.get('MODEL_NAME', 'gemini-2.0-flash'),
-            api_key=CONFIG.get('API_KEY'),
+            CONFIG.get('GEMINIAPI_MODEL', 'gemini-2.0-flash'),
+            api_key=CONFIG.get('GEMINIAPI_TOKEN'),
             personality=CONFIG.get('PERSONALITY', None)
         )
     except ImportError as e:
