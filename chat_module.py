@@ -43,7 +43,7 @@ class ChatModule:
                     ))
             if message.text:
                 tp.append(types.Part.from_text(
-                    text=message.text,
+                    text=message.author.name + ': ' + message.text.strip(),
                 ))
             role = "user" if message.author.id != self.uid else "model"
             contents.append(types.Content(parts=tp, role=role))
@@ -57,7 +57,29 @@ class ChatModule:
         response = self.client.models.generate_content(
             model=self.model_name,
             config=types.GenerateContentConfig(system_instruction=self.personality['definition'],
-                                            max_output_tokens=256),
+                                            max_output_tokens=256,
+                                            safety_settings=[
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        ]),
             contents=contents
         )
         
