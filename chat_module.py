@@ -19,14 +19,13 @@ repl = "bot: "
 IMG = ('png', 'jpg', 'jpeg', 'gif', 'webp')
 
 class ChatModule:
-    def __init__(self, model_name="gemini-2.0-flash", api_key=None, personality=None, uid=None):
+    def __init__(self, model_name="gemini-2.0-flash", api_key=None, personality=None, ):
         if not working:
             raise ImportError("Google GenAI library is not available.")
         self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
         self.personality = toml.loads(Path(personality)) or toml.loads(BASE)
-        self.uid = uid or 1
-    def preprocess(self, messages):
+    def preprocess(self, messages, uid):
         if not messages:
             raise ValueError("Messages cannot be empty.")
         
@@ -45,7 +44,7 @@ class ChatModule:
                 tp.append(types.Part.from_text(
                     text=message.author.name + ': ' + message.text.strip(),
                 ))
-            role = "user" if message.author.id != self.uid else "model"
+            role = "user" if message.author.id != uid else "model"
             contents.append(types.Content(parts=tp, role=role))
         
         return contents
@@ -89,8 +88,8 @@ class ChatModule:
         if len(temp) > 1 and temp[0].strip().lower() == self.personality['repl'].strip().lower():
             txt = ':'.join(temp[1:]).strip()
         return txt
-    def chat_with_messages(self, messages):
-        contents = self.preprocess(messages)
+    def chat_with_messages(self, messages, uid):
+        contents = self.preprocess(messages, uid)
         return self.chat(contents)
         
         

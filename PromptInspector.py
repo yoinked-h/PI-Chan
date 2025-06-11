@@ -82,8 +82,7 @@ if chat_module.working:
         chatbotmodule = chat_module.ChatModule(
             CONFIG.get('MODEL_NAME', 'gemini-2.0-flash'),
             api_key=CONFIG.get('API_KEY'),
-            personality=CONFIG.get('PERSONALITY', None),
-            uid=client.user.id
+            personality=CONFIG.get('PERSONALITY', None)
         )
     except ImportError as e:
         print(f"Error initializing ChatModule: {e}")
