@@ -5,7 +5,7 @@ from pathlib import Path
 import asyncio
 import gzip
 import json
-import toml
+import pytomlpp as toml
 import gradio_client
 import discord
 from discord import (
@@ -36,10 +36,7 @@ elif not CONFIG_PATH.exists():
 
 
 try:
-    CONFIG = toml.load(CONFIG_PATH)
-except toml.TomlDecodeError as e:
-    print(f"Error loading config file {CONFIG_PATH}: {e}")
-    exit(1)
+    CONFIG = toml.loads(CONFIG_PATH.read_text(encoding='utf-8'))
 except Exception as e:
     print(f"Unexpected error loading config: {e}")
     exit(1)
@@ -685,7 +682,9 @@ async def on_message(message: Message):
 
     if chatbotmodule is not None:
         # Check if the message contains any chatbot triggers
+        print(f"Checking message for chatbot triggers: {message.content[:50]}...") # Debugging
         triggers = chatbotmodule.triggers if hasattr(chatbotmodule, "triggers") else []
+        print(f"Chatbot triggers: {triggers}") # Debugging
         if any(trigger in message.content.lower() for trigger in triggers):
             # Fetch last 15 messages or until 10 minutes before this message
             history = []
@@ -725,9 +724,21 @@ async def on_message(message: Message):
 @client.event
 async def on_raw_reaction_add(payload: RawReactionActionEvent):
     """Handles reactions to potentially trigger metadata display or prompt guessing."""
-    # Ignore bots, DMs, and non-monitored channels
+    # check if its in DMs
+    if payload.guild_id is None: # DMs
+        if str(payload.emoji) == DELETE_DM_EMOJI:
+            # get message and delete it
+            try:
+                channel = await client.fetch_channel(payload.channel_id)
+                message = await channel.fetch_message(payload.message_id)
+                if message and message.author.id == client.user.id:
+                    await message.delete() # Delete the bot's own message
+            except Exception as e:
+                print(f"Error deleting message in DM: {e}")
+    
+    
     if payload.member.bot or not payload.guild_id or payload.channel_id not in monitored:
-        if payload.emoji == DELETE_DM_EMOJI and payload.member.bot and payload.member.id == client.user.id:
+        if str(payload.emoji) == DELETE_DM_EMOJI and payload.member.bot and payload.member.id == client.user.id:
             # Handle delete DM emoji reaction
             try:
                 channel = client.get_channel(payload.channel_id)

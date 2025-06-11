@@ -1,4 +1,4 @@
-import toml
+import pytomlpp as toml
 from pathlib import Path
 working = False
 try:
@@ -19,12 +19,16 @@ repl = "bot: "
 IMG = ('png', 'jpg', 'jpeg', 'gif', 'webp')
 
 class ChatModule:
-    def __init__(self, model_name="gemini-2.0-flash", api_key=None, personality=None, ):
+    def __init__(self, model_name="gemini-2.0-flash", api_key=None, personality=None,):
         if not working:
             raise ImportError("Google GenAI library is not available.")
         self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
-        self.personality = toml.load(Path(personality)) or toml.loads(BASE)
+        if personality is None:
+            self.personality = toml.loads(BASE)
+        else:
+            self.personality = toml.loads(Path(personality).read_text())
+        self.triggers = self.personality['triggers']
     def preprocess(self, messages, uid):
         if not messages:
             raise ValueError("Messages cannot be empty.")
