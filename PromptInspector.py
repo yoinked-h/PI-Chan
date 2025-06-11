@@ -699,7 +699,7 @@ async def on_message(message: Message):
             # else: # No metadata found in this attachment, try next
                 # print(f"No metadata found in {attachment.filename}")
     
-    if chatbotmodule is not None:
+    if chatbotmodule is not None and message.channel.id in chatmonitored:
         # Check if the message contains any chatbot triggers
         triggers = chatbotmodule.triggers if hasattr(chatbotmodule, "triggers") else []
         replied_to_bot = False
