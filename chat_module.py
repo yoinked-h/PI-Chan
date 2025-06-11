@@ -24,7 +24,7 @@ class ChatModule:
             raise ImportError("Google GenAI library is not available.")
         self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
-        self.personality = toml.loads(Path(personality)) or toml.loads(BASE)
+        self.personality = toml.load(Path(personality)) or toml.loads(BASE)
     def preprocess(self, messages, uid):
         if not messages:
             raise ValueError("Messages cannot be empty.")
