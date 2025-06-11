@@ -720,7 +720,7 @@ async def on_message(message: Message):
                     # Get chatbot response
 
                 try:
-                    response = await asyncio.to_thread(chatbotmodule.chat_with_messages, history, client.user.id)
+                    response = await chatbotmodule.chat_with_messages(history, client.user.id)
                     if response:
                         await message.channel.send(response, reference=message)
                 except Exception as e:

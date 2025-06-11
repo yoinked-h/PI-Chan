@@ -29,7 +29,7 @@ class ChatModule:
         else:
             self.personality = toml.loads(Path(personality).read_text())
         self.triggers = self.personality['triggers']
-    def preprocess(self, messages, uid):
+    async def preprocess(self, messages, uid):
         if not messages:
             raise ValueError("Messages cannot be empty.")
         
@@ -37,7 +37,7 @@ class ChatModule:
         for message in messages:
             tp = []
             if message.attachments:
-                attch = message.attachments[0].read()
+                attch = await message.attachments[0].read()
                 mime = message.attachments[0].filename.lower().split('.')[-1]
                 if mime in IMG:
                     if not message.content:
@@ -57,7 +57,7 @@ class ChatModule:
         
         return contents
 
-    def chat(self, contents):
+    async def chat(self, contents):
         if not contents:
             raise ValueError("Contents cannot be empty.")
         
@@ -96,8 +96,7 @@ class ChatModule:
         if len(temp) > 1 and temp[0].strip().lower() == self.personality['repl'].strip().lower():
             txt = ':'.join(temp[1:]).strip()
         return txt
-    def chat_with_messages(self, messages, uid):
-        contents = self.preprocess(messages, uid)
-        return self.chat(contents)
-        
-        
+    async def chat_with_messages(self, messages, uid):
+        contents = await self.preprocess(messages, uid)
+        return await self.chat(contents)
+
