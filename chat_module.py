@@ -78,7 +78,6 @@ class ChatModule:
                 ))
             role = "user" if message.author.id != uid else "model"
             contents.append(types.Content(parts=tp, role=role))
-        
         return contents
 
     async def chat(self, contents):
@@ -119,6 +118,7 @@ class ChatModule:
         # remove the first Bot: if it starts like that
         if len(temp) > 1 and temp[0].strip().lower() == self.personality['repl'].strip().lower():
             txt = ':'.join(temp[1:]).strip()
+        txt = txt.replace('&#x20;', ' ')
         return txt
     async def chat_with_messages(self, messages, uid):
         contents = await self.preprocess(messages, uid)
