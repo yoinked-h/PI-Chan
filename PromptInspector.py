@@ -726,7 +726,7 @@ async def on_message(message: Message):
                 history.reverse()  
                 try:
                     response = await chatbotmodule.chat_with_messages(history, client.user.id)
-                    if response:
+                    if response and response is not None:
                         await message.channel.send(response, reference=message)
                 except Exception as e:
                     print(f"Chatbot error: {e}")

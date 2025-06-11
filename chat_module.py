@@ -114,6 +114,9 @@ class ChatModule:
         )
         
         txt = response.text.strip()
+        if "[none]" in txt[-6:]:
+            # dont return anything
+            return None
         temp = txt.split(':')
         # remove the first Bot: if it starts like that
         if len(temp) > 1 and temp[0].strip().lower() == self.personality['repl'].strip().lower():
