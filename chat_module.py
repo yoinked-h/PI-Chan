@@ -1,5 +1,6 @@
 import pytomlpp as toml
 from pathlib import Path
+import re
 working = False
 try:
     from google import genai
@@ -17,6 +18,25 @@ repl = "bot: "
 """
 
 IMG = ('png', 'jpg', 'jpeg', 'gif', 'webp')
+
+async def handle_pings(msg):
+    # Regex to find all <@id> patterns
+    pattern = re.compile(r"<@(\d+)>")
+    # Find all unique IDs in the message
+    ids = set(pattern.findall(msg.content))
+    # Map IDs to global names
+    id_to_name = {}
+    for user_id in ids:
+        user = await msg.guild.fetch_member(int(user_id))
+        if user:
+            id_to_name[user_id] = f"@{user.global_name or user.display_name}"
+        else:
+            id_to_name[user_id] = f"@unknown"
+    # Replace all <@id> with @name
+    def repl(match):
+        uid = match.group(1)
+        return id_to_name.get(uid, f"@unknown")
+    return pattern.sub(repl, msg.content)
 
 class ChatModule:
     def __init__(self, model_name="gemini-2.0-flash", api_key=None, personality=None,):
@@ -42,15 +62,19 @@ class ChatModule:
                 if mime in IMG:
                     if not message.content:
                         tp.append(types.Part.from_text(
-                        text=message.author.name + ': ',
+                        text=message.author.global_name + ': ',
                     ))
                     tp.append(types.Part.from_bytes(
                         data=attch,
                         mime_type=f'image/{mime}',
                     ))
             if message.content:
+                name = message.author.global_name if message.author.id != uid else self.personality['name']
+                msgcont = message.content.strip()
+                if message.mentions:
+                    msgcont = await handle_pings(message)
                 tp.append(types.Part.from_text(
-                    text=message.author.name + ': ' + message.content.strip(),
+                    text= name + ': ' + msgcont,
                 ))
             role = "user" if message.author.id != uid else "model"
             contents.append(types.Content(parts=tp, role=role))

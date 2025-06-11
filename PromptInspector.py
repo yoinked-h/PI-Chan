@@ -707,18 +707,23 @@ async def on_message(message: Message):
             replied_message = message.reference.resolved
             if replied_message.author and replied_message.author.id == client.user.id:
                 replied_to_bot = True
-        if any(trigger in message.content.lower() for trigger in triggers) or replied_to_bot:
+        if any(trigger in message.content.lower() for trigger in triggers) or replied_to_bot or client.user.mentioned_in(message):
             async with message.channel.typing():
                 # Fetch last 15 messages or until 10 minutes before this message
                 history = [message]  # Start with the current message
+                stop = False
                 async for msg in message.channel.history(limit=50, before=message.created_at, oldest_first=False):
-                    if (message.created_at - msg.created_at).total_seconds() > 600 or message.content.startswith(','):
+                    if (message.created_at - msg.created_at).total_seconds() > 600 or message.content.startswith(',') or stop:
+                        break
+                    if message.content.strip().lower() == "<ctxbreak>":
+                        stop = True
                         break
                     history.append(msg)
-                    if len(history) >= 14:
+                    if len(history) >= 50:
                         break
                     # Get chatbot response
-
+                # reverse
+                history.reverse()  
                 try:
                     response = await chatbotmodule.chat_with_messages(history, client.user.id)
                     if response:
