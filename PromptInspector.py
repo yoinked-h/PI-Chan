@@ -648,7 +648,7 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
             embed.add_field(name="Tags (Comma Space)", value=f"```\n{tags_comma}\n```", inline=False)
 
         # Edit the original message with results
-        await predict_msg.edit(content="✨ Prediction Complete!", embed=embed)
+        await predict_msg.edit(content=tags_comma, embed=embed)
 
     except discord.Forbidden:
         print(f"Cannot send DM to user {user_id} (DMs likely disabled).")
