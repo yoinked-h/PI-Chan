@@ -634,7 +634,7 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
         except Exception as pred_err:
             predicted_tags = f"Error during prediction: {pred_err}"
 
-
+        tags_comma = None
         # Format and add fields
         if predicted_tags.startswith("Error:"):
             embed.add_field(name="Prediction Failed", value=f"```{predicted_tags}```", inline=False)
