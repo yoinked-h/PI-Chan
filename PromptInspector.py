@@ -5,7 +5,7 @@ from pathlib import Path
 import asyncio
 import gzip
 import json
-import toml
+import pytomlpp as toml
 import gradio_client
 import discord
 from discord import (
@@ -15,7 +15,8 @@ from discord import (
 from discord.ext import commands
 from discord.ui import View, button
 from PIL import Image
-import comfy_parser # Import the new module
+import comfy_parser 
+import chat_module 
 
 # --- Configuration Loading ---
 CONFIG_PATH = Path('config.toml')
@@ -33,22 +34,23 @@ elif not CONFIG_PATH.exists():
     print(f"Error: Config file not found at {CONFIG_PATH} and base config {BASE_CONFIG_PATH} missing.")
     exit(1)
 
+
 try:
-    CONFIG = toml.load(CONFIG_PATH)
-except toml.TomlDecodeError as e:
-    print(f"Error loading config file {CONFIG_PATH}: {e}")
-    exit(1)
+    CONFIG = toml.loads(CONFIG_PATH.read_text(encoding='utf-8'))
 except Exception as e:
     print(f"Unexpected error loading config: {e}")
     exit(1)
 
 # --- Bot Setup ---
 monitored: list = CONFIG.get('MONITORED_CHANNEL_IDS', [])
+chatmonitored: list = CONFIG.get('GEMINIAPI_RESPONSIVE', [])
 SCAN_LIMIT_BYTES = CONFIG.get('SCAN_LIMIT_BYTES', 40 * 1024**2)  # Default 40 MB
 GRADIO_BACKEND = CONFIG.get('GRADIO_BACKEND')
 TOKEN = CONFIG.get('TOKEN')
 METADATA_EMOJI = CONFIG.get('METADATA', '🔎')
+TRUSTED_UIDS = CONFIG.get('TRUSTED_UIDS', [0])
 GUESS_EMOJI = CONFIG.get('GUESS', '❔')
+DELETE_DM_EMOJI = CONFIG.get('DELETE_DM', '❌')
 
 # Validate essential config
 if not TOKEN:
@@ -69,6 +71,18 @@ else:
 intents = Intents.default() | Intents.message_content | Intents.members
 # Consider adding privileged intents gateway check if needed later
 client = commands.Bot(intents=intents)
+
+chatbotmodule = None
+
+if chat_module.working:
+    try:
+        chatbotmodule = chat_module.ChatModule(
+            CONFIG.get('GEMINIAPI_MODEL', 'gemini-2.0-flash'),
+            api_key=CONFIG.get('GEMINIAPI_TOKEN'),
+            personality=CONFIG.get('PERSONALITY', None)
+        )
+    except ImportError as e:
+        print(f"Error initializing ChatModule: {e}")
 
 # --- Helper Functions ---
 
@@ -620,7 +634,7 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
         except Exception as pred_err:
             predicted_tags = f"Error during prediction: {pred_err}"
 
-
+        tags_comma = None
         # Format and add fields
         if predicted_tags.startswith("Error:"):
             embed.add_field(name="Prediction Failed", value=f"```{predicted_tags}```", inline=False)
@@ -634,7 +648,7 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
             embed.add_field(name="Tags (Comma Space)", value=f"```\n{tags_comma}\n```", inline=False)
 
         # Edit the original message with results
-        await predict_msg.edit(content="✨ Prediction Complete!", embed=embed)
+        await predict_msg.edit(content=tags_comma, embed=embed)
 
     except discord.Forbidden:
         print(f"Cannot send DM to user {user_id} (DMs likely disabled).")
@@ -665,8 +679,7 @@ async def on_message(message: Message):
     # Ignore bots, DMs, and non-monitored channels
     if message.author.bot or not message.guild or message.channel.id not in monitored:
         return
-    # Process slash commands if needed (though Bot handles this usually)
-    # await client.process_commands(message) # If using message commands alongside slash
+
 
     if message.attachments:
         # Check only the first valid attachment for performance
@@ -685,13 +698,64 @@ async def on_message(message: Message):
                     return # Stop if reaction fails
             # else: # No metadata found in this attachment, try next
                 # print(f"No metadata found in {attachment.filename}")
-
+    
+    if chatbotmodule is not None and message.channel.id in chatmonitored:
+        # Check if the message contains any chatbot triggers
+        triggers = chatbotmodule.triggers if hasattr(chatbotmodule, "triggers") else []
+        replied_to_bot = False
+        if message.reference and message.reference.resolved:
+            replied_message = message.reference.resolved
+            if replied_message.author and replied_message.author.id == client.user.id:
+                replied_to_bot = True
+        if (any(trigger in message.content.lower() for trigger in triggers) or replied_to_bot or client.user.mentioned_in(message)) and not message.content.startswith(','):
+            async with message.channel.typing():
+                # Fetch last 15 messages or until 10 minutes before this message
+                history = [message]  # Start with the current message
+                stop = False
+                async for msg in message.channel.history(limit=50, before=message.created_at, oldest_first=False):
+                    if (message.created_at - msg.created_at).total_seconds() > 600 or msg.content.startswith(',') or stop:
+                        break
+                    if msg.content.strip().lower() == "<ctxbreak>":
+                        stop = True
+                        break
+                    history.append(msg)
+                    if len(history) >= 50:
+                        break
+                    # Get chatbot response
+                # reverse
+                history.reverse()  
+                try:
+                    response = await chatbotmodule.chat_with_messages(history, client.user.id)
+                    if response:
+                        await message.channel.send(response, reference=message)
+                except Exception as e:
+                    print(f"Chatbot error: {e}")
 
 @client.event
 async def on_raw_reaction_add(payload: RawReactionActionEvent):
     """Handles reactions to potentially trigger metadata display or prompt guessing."""
-    # Ignore bots, DMs, and non-monitored channels
+    # check if its in DMs
+    if payload.guild_id is None: # DMs
+        if str(payload.emoji) == DELETE_DM_EMOJI:
+            # get message and delete it
+            try:
+                channel = await client.fetch_channel(payload.channel_id)
+                message = await channel.fetch_message(payload.message_id)
+                if message and message.author.id == client.user.id:
+                    await message.delete() # Delete the bot's own message
+            except Exception as e:
+                print(f"Error deleting message in DM: {e}")
+    
+    
     if payload.member.bot or not payload.guild_id or payload.channel_id not in monitored:
+        if str(payload.emoji) == DELETE_DM_EMOJI and payload.member.bot and payload.member.id == client.user.id:
+            # Handle delete DM emoji reaction
+            try:
+                channel = client.get_channel(payload.channel_id)
+                message = await channel.fetch_message(payload.message_id)
+                if message and message.author.id == client.user.id:
+                    await message.delete() # Delete the bot's own message
+            except Exception: pass # Ignore if DM fails
         return
 
     emoji_name = str(payload.emoji) # Get emoji representation
@@ -797,9 +861,12 @@ async def privacy(ctx: ApplicationContext):
     base.add_field(name="Open Source", value="This bot is open source! Find the code [here](https://github.com/yoinked-h/PI-Chan).\nLicensed under the [MIT License](https://github.com/yoinked-h/PI-Chan/blob/main/LICENSE).\nBased on prior work by salt and NoCrypt.", inline=False)
 
     is_monitored = ctx.channel_id in monitored
+    is_gemini_monitored = ctx.channel_id in chatmonitored
     footer_text = f"Maintained by <@444257402007846942> | This channel is {'[monitored](<https://www.youtube.com/watch?v=kbNdx0yqbZE>)' if is_monitored else '[not monitored](https://www.youtube.com/watch?v=bnA9dt7Ul7c>)'}"
     icon = ctx.author.display_avatar if ctx.author else client.user.display_avatar
     base.set_footer(text=footer_text, icon_url=icon)
+    if is_gemini_monitored:
+        base.add_field(name="Gemini Chat Integration", value="Note: this channel has gemini chat integration enabled! If you send a message [that doesnt start with just `,`] it can be sent to Gemini's API, and that has its own can of worms relating privacy.")
     # Bot avatar as image
     if client.user.display_avatar:
         base.set_thumbnail(url=client.user.display_avatar.url)
@@ -851,6 +918,69 @@ async def toggle_channel(
         print(f"Error updating config file for toggle_channel: {e}")
         await ctx.respond(f"Failed to update config file. {action} channel {target_channel.mention} in memory, but change may be lost on restart.", ephemeral=True)
 
+@client.slash_command(
+    name="toggle_gemini_channel",
+    description="Adds/Removes a channel from the Gemini prompt-guessing monitor list."
+)
+@commands.has_permissions(manage_messages=True)
+@commands.guild_only()
+async def toggle_gemini_channel(
+    ctx: ApplicationContext,
+    channel: discord.TextChannel = None
+):
+    """
+    Adds or removes a channel from GEMINIAPI_RESPONSIVE in config.toml.
+    Requires Manage Messages permission.
+    """
+    if ctx.author.id not in TRUSTED_UIDS:
+        await ctx.respond("You do not have permission to use this command.", ephemeral=True)
+        return
+    target = channel or ctx.channel
+    if not isinstance(target, discord.TextChannel):
+        await ctx.respond("Invalid channel.", ephemeral=True)
+        return
+    
+    channel_id = target.id
+    global chatmonitored
+
+    if channel_id in chatmonitored:
+        chatmonitored.remove(channel_id)
+        action = "Removed"
+        preposition = "from"
+    else:
+        chatmonitored.append(channel_id)
+        action = "Added"
+        preposition = "to"
+
+    # Persist change
+    try:
+        current = toml.load(CONFIG_PATH) if CONFIG_PATH.exists() else {}
+        current['GEMINIAPI_RESPONSIVE'] = chatmonitored
+        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            toml.dump(current, f)
+
+        await ctx.respond(
+            f"{action} channel {target.mention} (`{channel_id}`) {preposition} the list.",
+            ephemeral=True
+        )
+
+    except Exception as e:
+        print(f"Error updating GEMINIAPI_RESPONSIVE in config: {e}")
+        await ctx.respond(
+            f"{action} in memory, but failed to write to config.toml. Change may be lost on restart.",
+            ephemeral=True
+        )
+
+
+@toggle_gemini_channel.error
+async def toggle_gemini_channel_error(ctx: ApplicationContext, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.respond("You need Manage Messages permission to use this.", ephemeral=True)
+    elif isinstance(error, commands.NoPrivateMessage):
+        await ctx.respond("This command can only be used in a server.", ephemeral=True)
+    else:
+        print(f"Error in toggle_gemini_channel: {error}")
+        await ctx.respond("Unexpected error occurred.", ephemeral=True)
 
 @toggle_channel.error
 async def toggle_channel_error(ctx: ApplicationContext, error):
