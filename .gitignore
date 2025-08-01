@@ -12,3 +12,4 @@ __pycache__/
 # ^ cursed, dont ask
 # ignore config
 config.toml
+venv
