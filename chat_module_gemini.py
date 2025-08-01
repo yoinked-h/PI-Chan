@@ -47,7 +47,10 @@ class ChatModule:
         if personality is None:
             self.personality = toml.loads(BASE)
         else:
-            self.personality = toml.loads(Path(personality).read_text())
+            personality_path = Path(f"{personality}.toml")
+            if not personality_path.exists():
+                personality_path = Path(personality)
+            self.personality = toml.loads(personality_path.read_text())
         self.triggers = self.personality['triggers']
     async def preprocess(self, messages, uid):
         if not messages:
