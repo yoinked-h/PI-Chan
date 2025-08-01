@@ -39,7 +39,8 @@ async def handle_pings(msg):
     return pattern.sub(repl, msg.content)
 
 class ChatModule:
-    def __init__(self, model_name="gemini-2.0-flash", api_key=None, personality=None,):
+    def __init__(self, model_name="gemini-2.0-flash", api_key=None, personality=None, vision=False):
+        self.vision = vision
         if not working:
             raise ImportError("Google GenAI library is not available.")
         self.client = genai.Client(api_key=api_key)
@@ -59,7 +60,7 @@ class ChatModule:
         contents = []
         for message in messages:
             tp = []
-            if message.attachments:
+            if message.attachments and self.vision:
                 attch = await message.attachments[0].read()
                 mime = message.attachments[0].filename.lower().split('.')[-1]
                 if mime in IMG:
