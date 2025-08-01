@@ -16,7 +16,7 @@ from discord.ext import commands
 from discord.ui import View, button
 from PIL import Image
 import comfy_parser 
-import chat_module 
+from translation_utils import init_translator, tprint, t
 
 # --- Configuration Loading ---
 CONFIG_PATH = Path('config.toml')
@@ -26,24 +26,31 @@ if not CONFIG_PATH.exists() and BASE_CONFIG_PATH.exists():
     try:
         base_cfg = BASE_CONFIG_PATH.read_text(encoding='utf-8')
         CONFIG_PATH.write_text(base_cfg, encoding='utf-8')
-        print(f"Created default config file at: {CONFIG_PATH}")
+        # Initialize translator with default language before printing
+        init_translator("en")
+        tprint("created_default_config", path=CONFIG_PATH)
     except Exception as e:
-        print(f"Error creating default config: {e}")
+        init_translator("en")
+        tprint("error_creating_default_config", error=e)
         exit(1) # Exit if config cannot be created
 elif not CONFIG_PATH.exists():
-    print(f"Error: Config file not found at {CONFIG_PATH} and base config {BASE_CONFIG_PATH} missing.")
+    init_translator("en")
+    tprint("error_config_not_found", config_path=CONFIG_PATH, base_config_path=BASE_CONFIG_PATH)
     exit(1)
 
 
 try:
     CONFIG = toml.loads(CONFIG_PATH.read_text(encoding='utf-8'))
+    # Initialize translator with language from config
+    personality = CONFIG.get('PERSONALITY', 'normal')
+    init_translator(personality)
 except Exception as e:
-    print(f"Unexpected error loading config: {e}")
-    exit(1)
+    init_translator("normal")
+    tprint("unexpected_error_loading_config", error=e)
 
 # --- Bot Setup ---
 monitored: list = CONFIG.get('MONITORED_CHANNEL_IDS', [])
-chatmonitored: list = CONFIG.get('GEMINIAPI_RESPONSIVE', [])
+chatmonitored: list = CONFIG.get('CHATBOT_RESPONSIVE', [])
 SCAN_LIMIT_BYTES = CONFIG.get('SCAN_LIMIT_BYTES', 40 * 1024**2)  # Default 40 MB
 GRADIO_BACKEND = CONFIG.get('GRADIO_BACKEND')
 TOKEN = CONFIG.get('TOKEN')
@@ -54,36 +61,51 @@ DELETE_DM_EMOJI = CONFIG.get('DELETE_DM', '❌')
 
 # Validate essential config
 if not TOKEN:
-    print("Error: DISCORD_TOKEN is not set in config.toml")
+    tprint("error_discord_token_not_set")
     exit(1)
 if not GRADIO_BACKEND:
-    print("Warning: GRADIO_BACKEND is not set in config.toml. Prompt guessing will not work.")
+    tprint("warning_gradio_backend_not_set")
     GRADCL = None
 else:
     try:
         GRADCL = gradio_client.Client(GRADIO_BACKEND)
-        print(f"Connected to Gradio backend: {GRADIO_BACKEND}")
+        tprint("connected_to_gradio_backend", backend=GRADIO_BACKEND)
     except Exception as e:
-        print(f"Error connecting to Gradio backend {GRADIO_BACKEND}: {e}")
+        tprint("error_connecting_to_gradio_backend", backend=GRADIO_BACKEND, error=e)
         GRADCL = None
 
+if CONFIG.get('USE_GEMINIAPI', False) and CONFIG.get('USE_OPENROUTER', False):
+    tprint("error_both_geminiapi_openrouter")
+    exit(1)
 
 intents = Intents.default() | Intents.message_content | Intents.members
 # Consider adding privileged intents gateway check if needed later
 client = commands.Bot(intents=intents)
 
 chatbotmodule = None
+if CONFIG.get('USE_GEMINIAPI', False):
+    import chat_module_gemini
+    if chat_module_gemini.working:
+        try:            
+            chatbotmodule = chat_module_gemini.ChatModule(
+                CONFIG.get('GEMINIAPI_MODEL', 'gemini-2.0-flash'),
+                api_key=CONFIG.get('GEMINIAPI_TOKEN'),
+                personality=CONFIG.get('PERSONALITY', None)
+            )
+        except ImportError as e:
+            tprint("error_initializing_chatmodule", error=e)
 
-if chat_module.working:
-    try:
-        chatbotmodule = chat_module.ChatModule(
-            CONFIG.get('GEMINIAPI_MODEL', 'gemini-2.0-flash'),
-            api_key=CONFIG.get('GEMINIAPI_TOKEN'),
-            personality=CONFIG.get('PERSONALITY', None)
-        )
-    except ImportError as e:
-        print(f"Error initializing ChatModule: {e}")
-
+if CONFIG.get('USE_OPENROUTER', False):
+    import chat_module_openai
+    if chat_module_openai.working:
+        try:            
+            chatbotmodule = chat_module_openai.ChatModule(
+                CONFIG.get('OPENROUTER_MODEL', 'openrouter/horizon-alpha'),
+                api_key=CONFIG.get('OPENROUTER_TOKEN'),
+                personality=CONFIG.get('PERSONALITY', None)
+            )
+        except ImportError as e:
+            tprint("error_initializing_chatmodule", error=e)
 # --- Helper Functions ---
 
 def get_params_from_string(param_str: str) -> OrderedDict:
@@ -123,9 +145,9 @@ def get_params_from_string(param_str: str) -> OrderedDict:
             except ValueError:
                 # Handle cases like "Fooocus V2 Expansion" which might not have ': '
                 if param.strip(): # Avoid adding empty keys
-                    output_dict[f"Info {len(output_dict)}"] = param.strip()[:1023] # Generic key
+                    output_dict[f"Info {len(output_dict)}"] = param.strip()[:1023] # Generic key    except Exception as e:
     except Exception as e:
-        print(f"Error parsing A1111 string: {e}\nString: {param_str[:200]}...")
+        tprint("error_parsing_a1111_string", error=e, param_str=param_str[:200])
         output_dict['Parse Error'] = "Could not fully parse parameters."
         output_dict['Raw'] = param_str[:1000] + ('...' if len(param_str) > 1000 else '')
 
@@ -275,6 +297,7 @@ def read_info_from_image_stealth(image: Image.Image):
                 decoded_data = byte_data.decode("utf-8", errors="ignore")
             return decoded_data
         except Exception as e:
+            # Note: This print is for low-level stealth decode errors, keeping as is
             print(e)
             pass
     return None
@@ -316,13 +339,13 @@ def drawthings_drain(info: dict):
             filtered_remapped = {k: v for k, v in remapped.items() if v is not None}
             return json.dumps(filtered_remapped) # Return as JSON string for consistency
         else:
-            print("Could not find DrawThings JSON payload in XMP.")
+            tprint("could_not_find_drawthings_json")
             return None
     except json.JSONDecodeError:
-        print("Error decoding DrawThings JSON.")
+        tprint("error_decoding_drawthings_json")
         return None
     except Exception as e:
-        print(f"Error processing DrawThings metadata: {e}")
+        tprint("error_processing_drawthings_metadata", error=e)
         return None
 
 
@@ -378,7 +401,7 @@ async def read_attachment_metadata(attachment: Attachment):
                         if metadata: info_source = "Stealth PNGInfo"
                         img_conv.close() # Close converted image
                     except Exception as conv_err:
-                        print(f"Error converting image for stealth read: {conv_err}")
+                        tprint("error_converting_image_for_stealth_read", error=conv_err)
                 else:
                     metadata = read_info_from_image_stealth(img)
                     if metadata: info_source = "Stealth PNGInfo"
@@ -393,7 +416,7 @@ async def read_attachment_metadata(attachment: Attachment):
     except Image.UnidentifiedImageError:
         return None, "Could not identify image format. Is it corrupted?"
     except Exception as error:
-        print(f"Error reading attachment metadata for {attachment.filename}: {type(error).__name__}: {error}")
+        tprint("error_reading_attachment_metadata", filename=attachment.filename, error_type=type(error).__name__, error=error)
         # import traceback
         # traceback.print_exc() # More detail for debugging
         return None, f"An unexpected error occurred: {type(error).__name__}"
@@ -458,7 +481,7 @@ async def process_and_display_metadata(
     view_to_send = None
     embed = None
 
-    try:        
+    try:
         if isinstance(metadata, str): # String metadata (A1111, NAI, Invoke, JSON, etc.)
             if 'Steps:' in metadata and 'Negative prompt:' in metadata: # Likely A1111
                 img_type = "A1111"
@@ -538,10 +561,8 @@ async def process_and_display_metadata(
                 with io.StringIO(json_str_for_file) as f:
                     f.seek(0)
                     files_to_send.append(File(f, "parameters.json" if params_dict else "parameters.txt"))
-
-        else:
             # Should not happen if called correctly
-            print(f"Error: Invalid metadata type passed: {type(metadata)}")
+            tprint("error_invalid_metadata_type", metadata_type=type(metadata))
             await send_func(content="Error: Could not process metadata due to unexpected data type.")
             return
 
@@ -562,48 +583,45 @@ async def process_and_display_metadata(
                 await send_func(**kwargs)
             except TypeError as te:
                 # Fallback if the send_func doesn't accept all args
-                print(f"Warning: send_func call failed, trying simpler call: {te}")
+                tprint("warning_send_func_call_failed", error=te)
                 try:
                     # Try sending without view first
                     if 'view' in kwargs: del kwargs['view']
                     await send_func(**kwargs)
                 except Exception as fallback_e:
-                    print(f"Error sending metadata response (fallback failed): {fallback_e}")
+                    tprint("error_sending_metadata_response_fallback_failed", error=fallback_e)
                     # Try sending just a simple text message as last resort
                     await send_func(content="Error displaying formatted parameters. Raw data might be available via command.")
-
-            except discord.HTTPException as http_e:
-                print(f"Discord API error sending metadata: {http_e}")
-                await send_func(content=f"Error sending parameters due to Discord API error: {http_e.status}")
+                except discord.HTTPException as http_e:
+                    tprint("discord_api_error_sending_metadata", error=http_e)
+                    await send_func(content=f"Error sending parameters due to Discord API error: {http_e.status}")
             except Exception as send_e:
-                print(f"Unexpected error sending metadata response: {send_e}")
+                tprint("unexpected_error_sending_metadata_response", error=send_e)
                 await send_func(content="An unexpected error occurred while sending the parameters.")
 
         else: # Case where embed creation failed somehow
             await send_func(content="Could not generate parameter embed.")
-
-
     except Exception as e:
-        print(f"Fatal error in process_and_display_metadata for {attachment.filename}: {type(e).__name__}: {e} | {img_type}")
+        tprint("fatal_error_in_process_and_display_metadata", filename=attachment.filename, error_type=type(e).__name__, error=e, img_type=img_type)
         # import traceback
         # traceback.print_exc()
         try:
             await send_func(content=f"## >w<\nuh oh! pi-chan did a fucky wucky and couldn't parse the parameters\nError: {type(e).__name__}\n## >w<")
         except Exception as final_e:
-            print(f"Error sending error message: {final_e}")
+            tprint("error_sending_error_message", error=final_e)
 
 
 # --- Gradio Prediction ---
 async def predict_prompt_task(user_id: int, member_color: discord.Color, attachment: Attachment):
     """Task to predict prompt using Gradio and send to user DMs."""
     if not GRADCL:
-        print("Gradio client not configured, skipping prediction.")
+        tprint("gradio_client_not_configured")
         # Optionally notify user DM?
         return
 
     user = client.get_user(user_id)
     if not user:
-        print(f"Cannot find user {user_id} for prediction DM.")
+        tprint("cannot_find_user_for_prediction", user_id=user_id)
         return
 
     try:
@@ -649,14 +667,13 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
 
         # Edit the original message with results
         await predict_msg.edit(content=tags_comma, embed=embed)
-
     except discord.Forbidden:
-        print(f"Cannot send DM to user {user_id} (DMs likely disabled).")
+        tprint("cannot_send_dm_to_user", user_id=user_id)
     except discord.HTTPException as http_e:
-        print(f"Discord API error during prediction DM: {http_e}")
+        tprint("discord_api_error_during_prediction_dm", error=http_e)
         # Maybe try sending to original channel if DM fails? Risky.
     except Exception as e:
-        print(f"Error in predict_prompt_task for user {user_id}: {type(e).__name__}: {e}")
+        tprint("error_in_predict_prompt_task", user_id=user_id, error_type=type(e).__name__, error=e)
         try:
             await user_dm.send("Sorry, an error occurred while predicting the prompt.")
         except Exception: pass # Ignore if sending error message fails
@@ -666,12 +683,15 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
 @client.event
 async def on_ready():
     """Prints bot status when ready."""
-    print(f"Logged in as {client.user} ({client.user.id})")
-    print(f"Monitoring {len(monitored)} channels: {monitored}")
-    print(f"Using metadata emoji: {METADATA_EMOJI}")
-    print(f"Using guess emoji: {GUESS_EMOJI}" if GRADCL else "Prompt Guessing Disabled (No Gradio Client)")
-    print(f"Scan limit: {SCAN_LIMIT_BYTES / 1024**2:.1f} MB")
-    print("------")
+    tprint("logged_in_as", user=client.user, user_id=client.user.id)
+    tprint("monitoring_channels", count=len(monitored), channels=monitored)
+    tprint("using_metadata_emoji", emoji=METADATA_EMOJI)
+    if GRADCL:
+        tprint("using_guess_emoji", emoji=GUESS_EMOJI)
+    else:
+        tprint("prompt_guessing_disabled")
+    tprint("scan_limit", limit=f"{SCAN_LIMIT_BYTES / 1024**2:.1f}")
+    tprint("separator")
 
 @client.event
 async def on_message(message: Message):
@@ -694,7 +714,7 @@ async def on_message(message: Message):
                     # Found metadata in one attachment, no need to check others in this message
                     return
                 except discord.HTTPException as e:
-                    print(f"Failed to add reaction: {e}")
+                    tprint("failed_to_add_reaction", error=e)
                     return # Stop if reaction fails
             # else: # No metadata found in this attachment, try next
                 # print(f"No metadata found in {attachment.filename}")
@@ -729,7 +749,7 @@ async def on_message(message: Message):
                     if response:
                         await message.channel.send(response, reference=message)
                 except Exception as e:
-                    print(f"Chatbot error: {e}")
+                    tprint("chatbot_error", error=e)
 
 @client.event
 async def on_raw_reaction_add(payload: RawReactionActionEvent):
@@ -744,7 +764,7 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
                 if message and message.author.id == client.user.id:
                     await message.delete() # Delete the bot's own message
             except Exception as e:
-                print(f"Error deleting message in DM: {e}")
+                tprint("error_deleting_message_in_dm", error=e)
     
     
     if payload.member.bot or not payload.guild_id or payload.channel_id not in monitored:
@@ -772,13 +792,13 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
         if not channel or not isinstance(channel, discord.TextChannel): return # Ensure channel exists and is text
         message = await channel.fetch_message(payload.message_id)
     except discord.NotFound:
-        print(f"Message {payload.message_id} not found for reaction.")
+        tprint("message_not_found_for_reaction", message_id=payload.message_id)
         return
     except discord.Forbidden:
-        print(f"Missing permissions to fetch message {payload.message_id}.")
+        tprint("missing_permissions_to_fetch_message", message_id=payload.message_id)
         return
     except Exception as e:
-        print(f"Error fetching message for reaction: {e}")
+        tprint("error_fetching_message_for_reaction", error=e)
         return
 
     # Ensure the message has attachments
@@ -814,12 +834,12 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
         try:
             user_dm = await user.create_dm()
         except discord.Forbidden:
-            print(f"Cannot send DM to user {payload.user_id}, metadata request ignored.")
+            tprint("cannot_send_dm_metadata_request_ignored", user_id=payload.user_id)
             # Optionally notify in channel? Might be noisy.
             # await channel.send(f"{payload.member.mention}, I can't DM you the parameters!", delete_after=15)
             return
         except Exception as e:
-            print(f"Error creating DM for metadata request: {e}")
+            tprint("error_creating_dm_for_metadata_request", error=e)
             return
 
         processed_count = 0
@@ -910,12 +930,11 @@ async def toggle_channel(
 
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             toml.dump(current_config, f)
-
-        await ctx.respond(f"{action} channel {target_channel.mention} (`{channel_id}`) {('to' if action == 'Added' else 'from')} the monitoring list.", ephemeral=True)
-        print(f"Channel {action}: {channel_id} by {ctx.author} ({ctx.author.id}). Current list: {monitored}")
+            await ctx.respond(f"{action} channel {target_channel.mention} (`{channel_id}`) {('to' if action == 'Added' else 'from')} the monitoring list.", ephemeral=True)
+        tprint("channel_action_by_user", action=action, channel_id=channel_id, user=ctx.author, user_id=ctx.author.id, current_list=monitored)
 
     except Exception as e:
-        print(f"Error updating config file for toggle_channel: {e}")
+        tprint("error_updating_config_file_for_toggle_channel", error=e)
         await ctx.respond(f"Failed to update config file. {action} channel {target_channel.mention} in memory, but change may be lost on restart.", ephemeral=True)
 
 @client.slash_command(
@@ -924,12 +943,12 @@ async def toggle_channel(
 )
 @commands.has_permissions(manage_messages=True)
 @commands.guild_only()
-async def toggle_gemini_channel(
+async def toggle_chatbot_channel(
     ctx: ApplicationContext,
     channel: discord.TextChannel = None
 ):
     """
-    Adds or removes a channel from GEMINIAPI_RESPONSIVE in config.toml.
+    Adds or removes a channel from the chatbot responsive in config.toml.
     Requires Manage Messages permission.
     """
     if ctx.author.id not in TRUSTED_UIDS:
@@ -955,31 +974,30 @@ async def toggle_gemini_channel(
     # Persist change
     try:
         current = toml.load(CONFIG_PATH) if CONFIG_PATH.exists() else {}
-        current['GEMINIAPI_RESPONSIVE'] = chatmonitored
+        current['CHATBOT_RESPONSIVE'] = chatmonitored
         with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
             toml.dump(current, f)
 
         await ctx.respond(
             f"{action} channel {target.mention} (`{channel_id}`) {preposition} the list.",
             ephemeral=True
-        )
-
+        )    
     except Exception as e:
-        print(f"Error updating GEMINIAPI_RESPONSIVE in config: {e}")
+        tprint("error_updating_chatbot_responsive_in_config", error=e)
         await ctx.respond(
             f"{action} in memory, but failed to write to config.toml. Change may be lost on restart.",
             ephemeral=True
         )
 
 
-@toggle_gemini_channel.error
-async def toggle_gemini_channel_error(ctx: ApplicationContext, error):
+@toggle_chatbot_channel.error
+async def toggle_chatbot_channel_error(ctx: ApplicationContext, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.respond("You need Manage Messages permission to use this.", ephemeral=True)
     elif isinstance(error, commands.NoPrivateMessage):
         await ctx.respond("This command can only be used in a server.", ephemeral=True)
     else:
-        print(f"Error in toggle_gemini_channel: {error}")
+        tprint("error_in_toggle_chatbot_channel", error=error)
         await ctx.respond("Unexpected error occurred.", ephemeral=True)
 
 @toggle_channel.error
@@ -990,7 +1008,7 @@ async def toggle_channel_error(ctx: ApplicationContext, error):
     elif isinstance(error, commands.NoPrivateMessage):
         await ctx.respond("This command can only be used in a server.", ephemeral=True)
     else:
-        print(f"Error in toggle_channel command: {error}")
+        tprint("error_in_toggle_channel_command", error=error)
         await ctx.respond("An unexpected error occurred.", ephemeral=True)
 
 
@@ -1118,22 +1136,22 @@ try:
             embed.set_footer(text="Resource usage of the host system.", icon_url=ctx.author.display_avatar if ctx.author else None)
             await ctx.respond(embed=embed, ephemeral=True)
         except Exception as e:
-            print(f"Error getting system status: {e}")
+            tprint("error_getting_system_status", error=e)
             await ctx.respond("Could not retrieve system status.", ephemeral=True)
 
 except ImportError:
-    print("psutil not installed, /status command disabled.")
+    tprint("psutil_not_installed")
     pass # Silently disable if psutil is not available
 
 # --- Run the Bot ---
 if __name__ == "__main__":
     if not TOKEN:
-        print("FATAL: Discord bot token not found in config.toml. Exiting.")
+        tprint("fatal_discord_token_not_found")
     else:
-        print("Starting bot...")
+        tprint("starting_bot")
         try:
             client.run(TOKEN)
         except discord.LoginFailure:
-            print("FATAL: Improper token provided. Check your config.toml.")
+            tprint("fatal_improper_token")
         except Exception as e:
-            print(f"FATAL: An error occurred during bot startup or runtime: {e}")
+            tprint("fatal_error_during_startup", error=e)
