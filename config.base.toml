@@ -10,6 +10,7 @@ DELETE_DM = "❌"
 GRADIO_BACKEND = "https://yoinked-da-nsfw-checker.hf.space/"
 
 CHATBOT_RESPONSIVE = [ 1019446913268973689 ]
+CHATBOT_ENABLE_VISION = true
 
 USE_GEMINIAPI = false
 GEMINIAPI_TOKEN = "onceTheSeaTurnsToBlood"

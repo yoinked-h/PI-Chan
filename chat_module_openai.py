@@ -34,7 +34,8 @@ async def handle_pings(msg):
     return pattern.sub(repl, msg.content)
 
 class ChatModule:
-    def __init__(self, model_name="gpt-3.5-turbo", api_key=None, personality=None):
+    def __init__(self, model_name="gpt-3.5-turbo", api_key=None, personality=None, vision=False):
+        self.vision = vision
         if api_key is None:
             raise ValueError("API key must be provided.")
         self.client = openai.Client(
@@ -57,7 +58,7 @@ class ChatModule:
         for message in messages:
             cont = []
             role = "user" if message.author.id != uid else "assistant"
-            if message.attachments:
+            if message.attachments and self.vision:
                 mime = message.attachments[0].filename.lower().split('.')[-1]
                 if mime in IMG:
                     cont.append({"type": "image_url", "image_url": {"url": message.attachments[0].url}})

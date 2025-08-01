@@ -90,7 +90,8 @@ if CONFIG.get('USE_GEMINIAPI', False):
             chatbotmodule = chat_module_gemini.ChatModule(
                 CONFIG.get('GEMINIAPI_MODEL', 'gemini-2.0-flash'),
                 api_key=CONFIG.get('GEMINIAPI_TOKEN'),
-                personality=CONFIG.get('PERSONALITY', None)
+                personality=CONFIG.get('PERSONALITY', None),
+                vision=CONFIG.get('CHATBOT_ENABLE_VISION', False)
             )
         except ImportError as e:
             tprint("error_initializing_chatmodule", error=e)
@@ -102,7 +103,8 @@ if CONFIG.get('USE_OPENROUTER', False):
             chatbotmodule = chat_module_openai.ChatModule(
                 CONFIG.get('OPENROUTER_MODEL', 'openrouter/horizon-alpha'),
                 api_key=CONFIG.get('OPENROUTER_TOKEN'),
-                personality=CONFIG.get('PERSONALITY', None)
+                personality=CONFIG.get('PERSONALITY', None),
+                vision=CONFIG.get('CHATBOT_ENABLE_VISION', False)
             )
         except ImportError as e:
             tprint("error_initializing_chatmodule", error=e)
