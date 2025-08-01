@@ -42,8 +42,8 @@ elif not CONFIG_PATH.exists():
 try:
     CONFIG = toml.loads(CONFIG_PATH.read_text(encoding='utf-8'))
     # Initialize translator with language from config
-    personality = CONFIG.get('PERSONALITY', 'normal')
-    init_translator(personality)
+    language = CONFIG.get('LANGUAGE', 'normal')
+    init_translator(language)
 except Exception as e:
     init_translator("normal")
     tprint("unexpected_error_loading_config", error=e)
