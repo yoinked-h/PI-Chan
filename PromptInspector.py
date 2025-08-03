@@ -563,6 +563,7 @@ async def process_and_display_metadata(
                 with io.StringIO(json_str_for_file) as f:
                     f.seek(0)
                     files_to_send.append(File(f, "parameters.json" if params_dict else "parameters.txt"))
+        else:
             # Should not happen if called correctly
             tprint("error_invalid_metadata_type", metadata_type=type(metadata))
             await send_func(content="Error: Could not process metadata due to unexpected data type.")
@@ -637,7 +638,7 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
 
         # Make the Gradio prediction
         job = GRADCL.submit(
-                gradio_client.file(attachment.url), # filepath in 'parameter_9' Textbox component
+                gradio_client.handle_file(attachment.url), # filepath in 'parameter_9' Textbox component
                 "chen-evangelion",                  # value in 'Select Classifier' Dropdown component
                 0.45,		                        # value in 'Threshold' Slider component
                 True,		                        # value in 'Use character interrogation?' Checkbox component
