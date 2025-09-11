@@ -708,8 +708,9 @@ async def on_message(message: Message):
         except Exception as e:
             thread_parent = False
         if thread_parent and thread_parent in monitored:
-            pass
-        return
+            ...
+        else:
+            return
 
 
     if message.attachments:
@@ -792,9 +793,10 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
             thread_parent = channel.parent_id
         except Exception as e:
             thread_parent = False
-        if thread_parent and thread_parent in monitored:
-            pass
-        return
+        if thread_parent and thread_parent in monitored and payload.member and not payload.member.bot: #dont react to ourselves, oops.
+            ...
+        else:
+            return
 
     emoji_name = str(payload.emoji) # Get emoji representation
 
