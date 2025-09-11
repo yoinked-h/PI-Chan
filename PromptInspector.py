@@ -701,6 +701,14 @@ async def on_message(message: Message):
     """Checks messages in monitored channels for images with metadata."""
     # Ignore bots, DMs, and non-monitored channels
     if message.author.bot or not message.guild or message.channel.id not in monitored:
+        # check if in thread of monitored channel
+        thread_parent = False
+        try:
+            thread_parent = message.channel.parent_id
+        except Exception as e:
+            thread_parent = False
+        if thread_parent and thread_parent in monitored:
+            pass
         return
 
 
@@ -749,7 +757,7 @@ async def on_message(message: Message):
                 history.reverse()  
                 try:
                     response = await chatbotmodule.chat_with_messages(history, client.user.id)
-                    if response:
+                    if response and response is not None:
                         await message.channel.send(response, reference=message)
                 except Exception as e:
                     tprint("chatbot_error", error=e)
@@ -769,8 +777,9 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
             except Exception as e:
                 tprint("error_deleting_message_in_dm", error=e)
     
-    
+    thread_parent = False
     if payload.member.bot or not payload.guild_id or payload.channel_id not in monitored:
+        channel = client.get_channel(payload.channel_id)
         if str(payload.emoji) == DELETE_DM_EMOJI and payload.member.bot and payload.member.id == client.user.id:
             # Handle delete DM emoji reaction
             try:
@@ -779,6 +788,12 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
                 if message and message.author.id == client.user.id:
                     await message.delete() # Delete the bot's own message
             except Exception: pass # Ignore if DM fails
+        try:
+            thread_parent = channel.parent_id
+        except Exception as e:
+            thread_parent = False
+        if thread_parent and thread_parent in monitored:
+            pass
         return
 
     emoji_name = str(payload.emoji) # Get emoji representation
@@ -792,7 +807,6 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
 
     try:
         channel = client.get_channel(payload.channel_id)
-        if not channel or not isinstance(channel, discord.TextChannel): return # Ensure channel exists and is text
         message = await channel.fetch_message(payload.message_id)
     except discord.NotFound:
         tprint("message_not_found_for_reaction", message_id=payload.message_id)
