@@ -341,7 +341,7 @@ def drawthings_drain(info: dict):
             filtered_remapped = {k: v for k, v in remapped.items() if v is not None}
             return json.dumps(filtered_remapped) # Return as JSON string for consistency
         else:
-            tprint("could_not_find_drawthings_json")
+            # tprint("could_not_find_drawthings_json")
             return None
     except json.JSONDecodeError:
         tprint("error_decoding_drawthings_json")
