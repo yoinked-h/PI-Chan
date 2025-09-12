@@ -635,10 +635,19 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
 
         # Show a "predicting" message
         predict_msg = await user_dm.send(embed=embed, content="✨ Predicting tags...")
-
+        filething = None
+        try:
+            filething = gradio_client.handle_file(attachment.url)
+        except:
+            try:
+                filething = gradio_client.file(attachment.url)
+            except:
+                ...
+        if filething is None:
+            return
         # Make the Gradio prediction
         job = GRADCL.submit(
-                gradio_client.handle_file(attachment.url), # filepath in 'parameter_9' Textbox component
+                filething, # filepath in 'parameter_9' Textbox component
                 "chen-evangelion",                  # value in 'Select Classifier' Dropdown component
                 0.45,		                        # value in 'Threshold' Slider component
                 True,		                        # value in 'Use character interrogation?' Checkbox component
