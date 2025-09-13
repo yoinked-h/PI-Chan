@@ -648,11 +648,12 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
         # Make the Gradio prediction
         job = GRADCL.submit(
                 filething, # filepath in 'parameter_9' Textbox component
-                "chen-evangelion",                  # value in 'Select Classifier' Dropdown component
-                0.45,		                        # value in 'Threshold' Slider component
+                "chen-pixai",                  # value in 'Select Classifier' Dropdown component
+                0.4,		                        # value in 'Threshold' Slider component
                 True,		                        # value in 'Use character interrogation?' Checkbox component
                 True,		                        # value in 'Use general interrogation?' Checkbox component
-                api_name="/classify"
+                api_name="/classify",
+                
         )
         # Wait for result - consider adding a timeout
         try:
