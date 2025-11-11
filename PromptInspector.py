@@ -966,6 +966,46 @@ async def toggle_channel(
         tprint("error_updating_config_file_for_toggle_channel", error=e)
         await ctx.respond(f"Failed to update config file. {action} channel {target_channel.mention} in memory, but change may be lost on restart.", ephemeral=True)
 
+
+@client.slash_command(name="toggle_channel_id", description="Adds/Removes a channel from monitoring. [with id]")
+@commands.has_permissions(manage_messages=True)
+@commands.guild_only() # Ensure this command is not used in DMs
+async def toggle_channel_id(
+    ctx: ApplicationContext,
+    channel_id: int = None # Optional argument, defaults to current channel
+):
+    """
+    Adds/Removes a channel id from the list of monitored channels.
+    Requires 'Manage Messages' permission.
+    """
+    
+
+    global monitored # Ensure we modify the global list
+    if channel_id in monitored:
+        monitored.remove(channel_id)
+        action = "Removed"
+    else:
+        monitored.append(channel_id)
+        action = "Added"
+
+    # Update the config file persistently
+    try:
+        # Read existing config first to avoid overwriting other settings
+        current_config = {}
+        if CONFIG_PATH.exists():
+            current_config = toml.load(CONFIG_PATH)
+
+        current_config['MONITORED_CHANNEL_IDS'] = monitored # Update the list
+
+        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            toml.dump(current_config, f)
+            await ctx.respond(f"{action} channel {target_channel.mention} (`{channel_id}`) {('to' if action == 'Added' else 'from')} the monitoring list.", ephemeral=True)
+        tprint("channel_action_by_user", action=action, channel_id=channel_id, user=ctx.author, user_id=ctx.author.id, current_list=monitored)
+
+    except Exception as e:
+        tprint("error_updating_config_file_for_toggle_channel", error=e)
+        await ctx.respond(f"Failed to update config file. {action} channel {target_channel.mention} in memory, but change may be lost on restart.", ephemeral=True)
+
 @client.slash_command(
     name="toggle_gemini_channel",
     description="Adds/Removes a channel from the Gemini prompt-guessing monitor list."
