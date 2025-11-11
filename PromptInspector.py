@@ -972,14 +972,18 @@ async def toggle_channel(
 @commands.guild_only() # Ensure this command is not used in DMs
 async def toggle_channel_id(
     ctx: ApplicationContext,
-    channel_id: int = None # Optional argument, defaults to current channel
+    channel_id: str = None # Optional argument, defaults to current channel
 ):
     """
     Adds/Removes a channel id from the list of monitored channels.
     Requires 'Manage Messages' permission.
     """
     
-
+    try:
+        channel_id = str(channel_id)
+    except:
+        await ctx.respond("not a id", ephemeral=True)
+        return
     global monitored # Ensure we modify the global list
     if channel_id in monitored:
         monitored.remove(channel_id)
