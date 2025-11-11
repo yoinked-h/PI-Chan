@@ -980,7 +980,7 @@ async def toggle_channel_id(
     """
     
     try:
-        channel_id = str(channel_id)
+        channel_id = int(channel_id)
     except:
         await ctx.respond("not a id", ephemeral=True)
         return
