@@ -341,7 +341,7 @@ def drawthings_drain(info: dict):
             filtered_remapped = {k: v for k, v in remapped.items() if v is not None}
             return json.dumps(filtered_remapped) # Return as JSON string for consistency
         else:
-            tprint("could_not_find_drawthings_json")
+            # tprint("could_not_find_drawthings_json")
             return None
     except json.JSONDecodeError:
         tprint("error_decoding_drawthings_json")
@@ -635,15 +635,25 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
 
         # Show a "predicting" message
         predict_msg = await user_dm.send(embed=embed, content="✨ Predicting tags...")
-
+        filething = None
+        try:
+            filething = gradio_client.handle_file(attachment.url)
+        except:
+            try:
+                filething = gradio_client.file(attachment.url)
+            except:
+                ...
+        if filething is None:
+            return
         # Make the Gradio prediction
         job = GRADCL.submit(
-                gradio_client.handle_file(attachment.url), # filepath in 'parameter_9' Textbox component
-                "chen-evangelion",                  # value in 'Select Classifier' Dropdown component
-                0.45,		                        # value in 'Threshold' Slider component
+                filething, # filepath in 'parameter_9' Textbox component
+                "chen-pixai",                  # value in 'Select Classifier' Dropdown component
+                0.4,		                        # value in 'Threshold' Slider component
                 True,		                        # value in 'Use character interrogation?' Checkbox component
                 True,		                        # value in 'Use general interrogation?' Checkbox component
-                api_name="/classify"
+                api_name="/classify",
+                
         )
         # Wait for result - consider adding a timeout
         try:
@@ -701,7 +711,16 @@ async def on_message(message: Message):
     """Checks messages in monitored channels for images with metadata."""
     # Ignore bots, DMs, and non-monitored channels
     if message.author.bot or not message.guild or message.channel.id not in monitored:
-        return
+        # check if in thread of monitored channel
+        thread_parent = False
+        try:
+            thread_parent = message.channel.parent_id
+        except Exception as e:
+            thread_parent = False
+        if thread_parent and thread_parent in monitored:
+            ...
+        else:
+            return
 
 
     if message.attachments:
@@ -769,8 +788,9 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
             except Exception as e:
                 tprint("error_deleting_message_in_dm", error=e)
     
-    
+    thread_parent = False
     if payload.member.bot or not payload.guild_id or payload.channel_id not in monitored:
+        channel = client.get_channel(payload.channel_id)
         if str(payload.emoji) == DELETE_DM_EMOJI and payload.member.bot and payload.member.id == client.user.id:
             # Handle delete DM emoji reaction
             try:
@@ -779,7 +799,14 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
                 if message and message.author.id == client.user.id:
                     await message.delete() # Delete the bot's own message
             except Exception: pass # Ignore if DM fails
-        return
+        try:
+            thread_parent = channel.parent_id
+        except Exception as e:
+            thread_parent = False
+        if thread_parent and thread_parent in monitored and payload.member and not payload.member.bot: #dont react to ourselves, oops.
+            ...
+        else:
+            return
 
     emoji_name = str(payload.emoji) # Get emoji representation
 
@@ -792,7 +819,6 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
 
     try:
         channel = client.get_channel(payload.channel_id)
-        if not channel or not isinstance(channel, discord.TextChannel): return # Ensure channel exists and is text
         message = await channel.fetch_message(payload.message_id)
     except discord.NotFound:
         tprint("message_not_found_for_reaction", message_id=payload.message_id)
@@ -939,6 +965,50 @@ async def toggle_channel(
     except Exception as e:
         tprint("error_updating_config_file_for_toggle_channel", error=e)
         await ctx.respond(f"Failed to update config file. {action} channel {target_channel.mention} in memory, but change may be lost on restart.", ephemeral=True)
+
+
+@client.slash_command(name="toggle_channel_id", description="Adds/Removes a channel from monitoring. [with id]")
+@commands.has_permissions(manage_messages=True)
+@commands.guild_only() # Ensure this command is not used in DMs
+async def toggle_channel_id(
+    ctx: ApplicationContext,
+    channel_id: str = None # Optional argument, defaults to current channel
+):
+    """
+    Adds/Removes a channel id from the list of monitored channels.
+    Requires 'Manage Messages' permission.
+    """
+    
+    try:
+        channel_id = int(channel_id)
+    except:
+        await ctx.respond("not a id", ephemeral=True)
+        return
+    global monitored # Ensure we modify the global list
+    if channel_id in monitored:
+        monitored.remove(channel_id)
+        action = "Removed"
+    else:
+        monitored.append(channel_id)
+        action = "Added"
+
+    # Update the config file persistently
+    try:
+        # Read existing config first to avoid overwriting other settings
+        current_config = {}
+        if CONFIG_PATH.exists():
+            current_config = toml.load(CONFIG_PATH)
+
+        current_config['MONITORED_CHANNEL_IDS'] = monitored # Update the list
+
+        with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
+            toml.dump(current_config, f)
+            await ctx.respond(f"{action} channel <${channel_id}> (`{channel_id}`) {('to' if action == 'Added' else 'from')} the monitoring list.", ephemeral=True)
+        tprint("channel_action_by_user", action=action, channel_id=channel_id, user=ctx.author, user_id=ctx.author.id, current_list=monitored)
+
+    except Exception as e:
+        tprint("error_updating_config_file_for_toggle_channel", error=e)
+        await ctx.respond(f"Failed to update config file. {action} channel <#{channel_id}> in memory, but change may be lost on restart.", ephemeral=True)
 
 @client.slash_command(
     name="toggle_gemini_channel",

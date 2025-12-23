@@ -2,9 +2,7 @@
 Get prompts/descriptions of images uploaded on discord.
 
 # You can add PI-Chan into your server without hosting!
-Just join the [touhouai](https://discord.gg/touhouai) discord, and click on PI-Chan's profile to see the "Add to Server" button. Click it and you'll invite it!
-
-![Discord Server](https://discordapp.com/api/guilds/930499730843250783/widget.png?style=banner2)
+[this](https://discord.com/oauth2/authorize?client_id=1159983729591210004)
 
 ## Functionality
 
