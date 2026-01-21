@@ -576,7 +576,7 @@ async def process_and_display_metadata(
 
             # Send the message using the provided function
             # Need to handle different signatures (send_func might not accept 'view' or 'files')
-            kwargs = {'embed': embed}
+            kwargs = {'embed': embed, 'content': f" {message.jump_url}"}
             if files_to_send:
                 kwargs['files'] = files_to_send
             if view_to_send:
@@ -1188,6 +1188,64 @@ async def formatted_params(ctx: ApplicationContext, message: Message):
         attach_original_image=False, # Attach the image for context in the command response
         add_details_button=False # No button needed for command context
     )
+
+
+@client.message_command(
+    name="View Parameters (DM)",
+    integration_types={
+        IntegrationType.guild_install,
+        IntegrationType.user_install,
+    }
+)
+async def formatted_params_dm(ctx: ApplicationContext, message: Message):
+    """(Message Command) DM formatted parameters to the requesting user."""
+    await ctx.defer(ephemeral=True)
+
+    # Create a DM channel to the requesting user
+    try:
+        user_dm = await ctx.author.create_dm()
+    except discord.Forbidden:
+        await ctx.respond("I can't DM you. Please check your privacy settings to allow DMs from apps/bots.", ephemeral=True)
+        return
+    except Exception as e:
+        tprint("error_creating_dm_for_param_request", error=e)
+        await ctx.respond("Failed to create DM to send parameters.", ephemeral=True)
+        return
+
+    if not message.attachments:
+        await user_dm.send(f"This message has no attachments. {message.jump_url}")
+        return
+
+    metadata_found = None
+    first_attachment = None
+    error_message = "No attachments with readable metadata found." # Default error
+
+    # Find the first attachment with metadata
+    for attachment in message.attachments:
+        metadata, error = await read_attachment_metadata(attachment)
+        if error:
+            error_message = f"Checked attachment {attachment.filename}: {error}" # Keep last error
+            continue
+        if metadata:
+            metadata_found = metadata
+            first_attachment = attachment
+            break # Found metadata, stop searching
+
+    if not metadata_found:
+        await user_dm.send(f"{error_message}\n{message.author.mention} might need to enable metadata embedding in their image generator. {message.jump_url}")
+        return
+
+    # Use the unified function to display in the user's DM
+    await process_and_display_metadata(
+        message=message,
+        attachment=first_attachment,
+        metadata=metadata_found,
+        send_func=user_dm.send, # Send to user's DMs
+        attach_original_image=True, # Attach the image for context in the DM
+        add_details_button=('Steps:' in metadata_found if isinstance(metadata_found, str) else False)
+    )
+
+    await ctx.edit(content="Sent DM!")
 
 # --- Optional Status Command ---
 try:
