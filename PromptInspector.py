@@ -1214,6 +1214,7 @@ async def formatted_params_dm(ctx: ApplicationContext, message: Message):
 
     if not message.attachments:
         await user_dm.send(f"This message has no attachments. {message.jump_url}")
+        await ctx.edit(content="Sent DM!")
         return
 
     metadata_found = None
@@ -1233,6 +1234,7 @@ async def formatted_params_dm(ctx: ApplicationContext, message: Message):
 
     if not metadata_found:
         await user_dm.send(f"{error_message}\n{message.author.mention} might need to enable metadata embedding in their image generator. {message.jump_url}")
+        await ctx.edit(content="Sent DM!")
         return
 
     # Use the unified function to display in the user's DM
