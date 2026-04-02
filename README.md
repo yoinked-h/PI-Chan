@@ -36,6 +36,7 @@ Install [this](https://github.com/ashen-sensored/sd_webui_stealth_pnginfo) if it
 |      Automatic 1111-likes      |      ✅     |
 |             ComfyUI            |     🟨*     |
 |             SwarmUI            |      ✅     |
+|            MooshieUI           |      ✅     |
 |             NovelAI            |      ✅     |
 |             Fooocus            |     ✅**    |
 
