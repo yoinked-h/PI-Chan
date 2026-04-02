@@ -510,6 +510,21 @@ async def process_and_display_metadata(
                         for key in keys_to_remove:
                             params_dict.pop(key, None)
 
+                    elif "mooshie_extra" in params_dict and isinstance(params_dict.get('mooshie_extra'), dict) and params_dict['mooshie_extra'].get('software') == 'MooshieUI':  # MooshieUI
+                        img_type = "MooshieUI"
+                        mooshie_extra = params_dict.pop('mooshie_extra', {})
+                        swarm_params = params_dict.pop('sui_image_params', {})
+                        params_dict.pop('sui_extra_data', None)
+                        params_dict = {}
+                        for key, val in swarm_params.items():
+                            if "sui_" not in key:
+                                params_dict[key] = str(val)
+                        # Append MooshieUI-exclusive fields
+                        for key, val in mooshie_extra.items():
+                            if key != 'software':
+                                pretty_key = key.replace('_', ' ').title()
+                                params_dict[pretty_key] = str(val)
+
                     elif "sui_image_params" in params_dict: # SwarmUI
                         img_type = "SwarmUI"
                         swarm_params = params_dict.pop('sui_image_params', {})
