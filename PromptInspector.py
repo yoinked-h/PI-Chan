@@ -525,13 +525,18 @@ async def process_and_display_metadata(
                                 pretty_key = key.replace('_', ' ').title()
                                 params_dict[pretty_key] = str(val)
 
-                    elif "sui_image_params" in params_dict: # SwarmUI
-                        img_type = "SwarmUI"
+                    elif "sui_image_params" in params_dict:  # SwarmUI or MooshieUI
                         swarm_params = params_dict.pop('sui_image_params', {})
+                        params_dict.pop('sui_extra_data', None)
+                        params_dict.pop('mooshie_extra', None)
+
+                        is_mooshie = "mooshie_version" in swarm_params
+                        img_type = "MooshieUI" if is_mooshie else "SwarmUI"
+
                         params_dict = {}
                         # Merge swarm params into main dict (convert values to str for safety)
                         for key, val in swarm_params.items():
-                            if "sui_" not in key: 
+                            if "sui_" not in key and key != "mooshie_version":
                                 params_dict[key] = str(val)
 
                     elif "aesthetic_score" in params_dict or 'Guidance Mode' in params_dict: # DrawThings (already parsed to JSON)
