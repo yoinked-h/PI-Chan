@@ -78,8 +78,8 @@ if CONFIG.get('USE_GEMINIAPI', False) and CONFIG.get('USE_OPENROUTER', False):
     tprint("error_both_geminiapi_openrouter")
     exit(1)
 
-intents = Intents.default() | Intents.message_content | Intents.members
-# Consider adding privileged intents gateway check if needed later
+intents = Intents.default() | Intents.message_content# | Intents.members
+# members not needed?
 client = commands.Bot(intents=intents)
 
 chatbotmodule = None
