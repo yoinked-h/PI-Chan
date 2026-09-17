@@ -79,7 +79,7 @@ if CONFIG.get('USE_GEMINIAPI', False) and CONFIG.get('USE_OPENROUTER', False):
     exit(1)
 
 intents = Intents.default() | Intents.message_content | Intents.members
-# Consider adding privileged intents gateway check if needed later
+# members needed
 client = commands.Bot(intents=intents)
 
 chatbotmodule = None
@@ -510,13 +510,33 @@ async def process_and_display_metadata(
                         for key in keys_to_remove:
                             params_dict.pop(key, None)
 
-                    elif "sui_image_params" in params_dict: # SwarmUI
-                        img_type = "SwarmUI"
+                    elif "mooshie_extra" in params_dict and isinstance(params_dict.get('mooshie_extra'), dict) and params_dict['mooshie_extra'].get('software') == 'MooshieUI':  # MooshieUI
+                        img_type = "MooshieUI"
+                        mooshie_extra = params_dict.pop('mooshie_extra', {})
                         swarm_params = params_dict.pop('sui_image_params', {})
+                        params_dict.pop('sui_extra_data', None)
+                        params_dict = {}
+                        for key, val in swarm_params.items():
+                            if "sui_" not in key:
+                                params_dict[key] = str(val)
+                        # Append MooshieUI-exclusive fields
+                        for key, val in mooshie_extra.items():
+                            if key != 'software':
+                                pretty_key = key.replace('_', ' ').title()
+                                params_dict[pretty_key] = str(val)
+
+                    elif "sui_image_params" in params_dict:  # SwarmUI or MooshieUI
+                        swarm_params = params_dict.pop('sui_image_params', {})
+                        params_dict.pop('sui_extra_data', None)
+                        params_dict.pop('mooshie_extra', None)
+
+                        is_mooshie = "mooshie_version" in swarm_params
+                        img_type = "MooshieUI" if is_mooshie else "SwarmUI"
+
                         params_dict = {}
                         # Merge swarm params into main dict (convert values to str for safety)
                         for key, val in swarm_params.items():
-                            if "sui_" not in key: 
+                            if "sui_" not in key and key != "mooshie_version":
                                 params_dict[key] = str(val)
 
                     elif "aesthetic_score" in params_dict or 'Guidance Mode' in params_dict: # DrawThings (already parsed to JSON)
@@ -576,7 +596,7 @@ async def process_and_display_metadata(
 
             # Send the message using the provided function
             # Need to handle different signatures (send_func might not accept 'view' or 'files')
-            kwargs = {'embed': embed}
+            kwargs = {'embed': embed, 'content': f" {message.jump_url}"}
             if files_to_send:
                 kwargs['files'] = files_to_send
             if view_to_send:
@@ -904,18 +924,16 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
 async def privacy(ctx: ApplicationContext):
     """Returns our privacy policy."""
     base = Embed(title="Privacy Policy", color=ctx.author.color if hasattr(ctx.author, 'color') else discord.Color.blue())
-    base.add_field(name="What we collect", value="When an image is sent in a **monitored channel**, the bot temporarily downloads it to memory (RAM) for processing.\nIt extracts metadata (like generation parameters) if present.\nBasic user info (username, color) is used for display purposes (e.g., embed footers).\n***We do not store your images or extracted metadata permanently.*** Data is processed in memory and discarded.", inline=False)
-    base.add_field(name="What we store", value="The only persistent storage used is for:\n- The list of monitored channel IDs.\n- The bot's configuration file (`config.toml`).\nError logs may contain snippets of metadata temporarily if parsing fails, primarily for debugging by the bot operator.", inline=False)
-    base.add_field(name="What we share", value="***We do not share any of your data or images with third parties.***", inline=False)
-    base.add_field(name="Open Source", value="This bot is open source! Find the code [here](https://github.com/yoinked-h/PI-Chan).\nLicensed under the [MIT License](https://github.com/yoinked-h/PI-Chan/blob/main/LICENSE).\nBased on prior work by salt and NoCrypt.", inline=False)
+    base.add_field(name="policy gist", value="read privacy policy in: https://gist.github.com/yoinked-h/0b91e0b161a9dd5aac02fc4404b68c65", inline=False)
+    base.add_field(name="open source", value="This bot is open source! Find the code [here](https://github.com/yoinked-h/PI-Chan).\nLicensed under the [MIT License](https://github.com/yoinked-h/PI-Chan/blob/main/LICENSE).\nBased on prior work by salt and NoCrypt.", inline=False)
 
     is_monitored = ctx.channel_id in monitored
     is_gemini_monitored = ctx.channel_id in chatmonitored
-    footer_text = f"Maintained by <@444257402007846942> | This channel is {'[monitored](<https://www.youtube.com/watch?v=kbNdx0yqbZE>)' if is_monitored else '[not monitored](https://www.youtube.com/watch?v=bnA9dt7Ul7c>)'}"
+    footer_text = f"Maintained by <@444257402007846942> | This channel is {'monitored: https://www.youtube.com/watch?v=kbNdx0yqbZE' if is_monitored else 'not monitored: https://www.youtube.com/watch?v=bnA9dt7Ul7c'}"
     icon = ctx.author.display_avatar if ctx.author else client.user.display_avatar
     base.set_footer(text=footer_text, icon_url=icon)
     if is_gemini_monitored:
-        base.add_field(name="Gemini Chat Integration", value="Note: this channel has gemini chat integration enabled! If you send a message [that doesnt start with just `,`] it can be sent to Gemini's API, and that has its own can of worms relating privacy.")
+        base.add_field(name="AI Chat Integration", value="Note: this channel has gemini/llm chat integration enabled! If you send a message [that doesnt start with just `,`] it can be sent to Gemini's API, and that has its own can of worms relating privacy.")
     # Bot avatar as image
     if client.user.display_avatar:
         base.set_thumbnail(url=client.user.display_avatar.url)
@@ -1188,6 +1206,66 @@ async def formatted_params(ctx: ApplicationContext, message: Message):
         attach_original_image=False, # Attach the image for context in the command response
         add_details_button=False # No button needed for command context
     )
+
+
+@client.message_command(
+    name="View Parameters (DM)",
+    integration_types={
+        IntegrationType.guild_install,
+        IntegrationType.user_install,
+    }
+)
+async def formatted_params_dm(ctx: ApplicationContext, message: Message):
+    """(Message Command) DM formatted parameters to the requesting user."""
+    await ctx.defer(ephemeral=True)
+
+    # Create a DM channel to the requesting user
+    try:
+        user_dm = await ctx.author.create_dm()
+    except discord.Forbidden:
+        await ctx.respond("I can't DM you. Please check your privacy settings to allow DMs from apps/bots.", ephemeral=True)
+        return
+    except Exception as e:
+        tprint("error_creating_dm_for_param_request", error=e)
+        await ctx.respond("Failed to create DM to send parameters.", ephemeral=True)
+        return
+
+    if not message.attachments:
+        await user_dm.send(f"This message has no attachments. {message.jump_url}")
+        await ctx.edit(content="Sent DM!")
+        return
+
+    metadata_found = None
+    first_attachment = None
+    error_message = "No attachments with readable metadata found." # Default error
+
+    # Find the first attachment with metadata
+    for attachment in message.attachments:
+        metadata, error = await read_attachment_metadata(attachment)
+        if error:
+            error_message = f"Checked attachment {attachment.filename}: {error}" # Keep last error
+            continue
+        if metadata:
+            metadata_found = metadata
+            first_attachment = attachment
+            break # Found metadata, stop searching
+
+    if not metadata_found:
+        await user_dm.send(f"{error_message}\n{message.author.mention} might need to enable metadata embedding in their image generator. {message.jump_url}")
+        await ctx.edit(content="Sent DM!")
+        return
+
+    # Use the unified function to display in the user's DM
+    await process_and_display_metadata(
+        message=message,
+        attachment=first_attachment,
+        metadata=metadata_found,
+        send_func=user_dm.send, # Send to user's DMs
+        attach_original_image=True, # Attach the image for context in the DM
+        add_details_button=('Steps:' in metadata_found if isinstance(metadata_found, str) else False)
+    )
+
+    await ctx.edit(content="Sent DM!")
 
 # --- Optional Status Command ---
 try:
