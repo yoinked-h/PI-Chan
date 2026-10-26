@@ -635,14 +635,13 @@ async def process_and_display_metadata(
 
 
 # --- Gradio Prediction ---
-async def predict_prompt_task(user_id: int, member_color: discord.Color, attachment: Attachment):
+async def predict_prompt_task(user, member_color: discord.Color, attachment: Attachment):
     """Task to predict prompt using Gradio and send to user DMs."""
     if not GRADCL:
         tprint("gradio_client_not_configured")
         # Optionally notify user DM?
         return
 
-    user = client.get_user(user_id)
     if not user:
         tprint("cannot_find_user_for_prediction", user_id=user_id)
         return
@@ -863,12 +862,12 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
         # Create a task for each valid attachment to predict in parallel
         tasks = [
             asyncio.create_task(
-                predict_prompt_task(payload.user_id, payload.member.color, attachment)
+                predict_prompt_task(client.get_guild(payload.guild_id).get_member(payload.user_id), payload.member.color, attachment)
             ) for attachment in valid_attachments
         ]
         # Notify user maybe?
         try:
-            user_dm = await client.get_user(payload.user_id).create_dm()
+            user_dm = await client.get_guild(payload.guild_id).get_member(payload.user_id).create_dm()
             await user_dm.send(f"✨ Attempting to predict prompts for {len(tasks)} image(s) from the message...")
         except Exception: pass # Ignore if DM fails
         # Tasks run in background, no need to await here usually
@@ -877,7 +876,7 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
 
     # Handle Metadata Request
     if is_metadata_request:
-        user = client.get_user(payload.user_id)
+        user = client.get_guild(payload.guild_id).get_member(payload.user_id)
         if not user: return # Should not happen
 
         try:
