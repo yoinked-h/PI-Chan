@@ -48,6 +48,7 @@ except Exception as e:
     init_translator("normal")
     tprint("unexpected_error_loading_config", error=e)
     exit(1)
+    exit(1)
 
 # --- Bot Setup ---
 monitored: list = CONFIG.get('MONITORED_CHANNEL_IDS', [])
@@ -645,9 +646,7 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
         # Optionally notify user DM?
         return
 
-    guild = client.get_guild(guild_id)
-    user = guild.get_member(user_id) if guild else None
-
+    user = client.get_user(user_id)
     if not user:
         tprint("cannot_find_user_for_prediction", user_id=user_id)
         return
@@ -872,8 +871,7 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
         ]
         # Notify user maybe?
         try:
-            guild = client.get_guild(payload.guild_id)
-            user_dm = await guild.get_member(payload.user_id).create_dm()
+            user_dm = await client.get_user(payload.user_id).create_dm()
             await user_dm.send(f"✨ Attempting to predict prompts for {len(tasks)} image(s) from the message...")
         except Exception: pass # Ignore if DM fails
         # Tasks run in background, no need to await here usually
@@ -882,8 +880,7 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
 
     # Handle Metadata Request
     if is_metadata_request:
-        guild = client.get_guild(payload.guild_id)
-        user = guild.get_member(payload.user_id) if guild else None
+        user = client.get_user(payload.user_id)
         if not user: return # Should not happen
 
         try:
