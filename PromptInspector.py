@@ -646,7 +646,7 @@ async def predict_prompt_task(user_id: int, member_color: discord.Color, attachm
         # Optionally notify user DM?
         return
 
-    user = client.get_user(user_id)
+    user = await client.fetch_user(user_id)
     if not user:
         tprint("cannot_find_user_for_prediction", user_id=user_id)
         return
@@ -813,11 +813,11 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
                 tprint("error_deleting_message_in_dm", error=e)
     thread_parent = False
     if payload.member.bot or not payload.guild_id or payload.channel_id not in monitored:
-        channel = client.get_channel(payload.channel_id)
+        channel = await client.fetch_channel(payload.channel_id)
         if str(payload.emoji) == DELETE_DM_EMOJI and payload.member.bot and payload.member.id == client.user.id:
             # Handle delete DM emoji reaction
             try:
-                channel = client.get_channel(payload.channel_id)
+                channel = await client.fetch_channel(payload.channel_id)
                 message = await channel.fetch_message(payload.message_id)
                 if message and message.author.id == client.user.id:
                     await message.delete() # Delete the bot's own message
@@ -841,7 +841,7 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
         return
 
     try:
-        channel = client.get_channel(payload.channel_id)
+        channel = await client.fetch_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
     except discord.NotFound:
         tprint("message_not_found_for_reaction", message_id=payload.message_id)
@@ -871,7 +871,8 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
         ]
         # Notify user maybe?
         try:
-            user_dm = await client.get_user(payload.user_id).create_dm()
+            user = await client.fetch_user(payload.user_id)
+
             await user_dm.send(f"✨ Attempting to predict prompts for {len(tasks)} image(s) from the message...")
         except Exception: pass # Ignore if DM fails
         # Tasks run in background, no need to await here usually
@@ -880,7 +881,7 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
 
     # Handle Metadata Request
     if is_metadata_request:
-        user = client.get_user(payload.user_id)
+        user = await client.fetch_user(payload.user_id)
         if not user: return # Should not happen
 
         try:
