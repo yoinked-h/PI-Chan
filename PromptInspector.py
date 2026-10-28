@@ -47,6 +47,7 @@ try:
 except Exception as e:
     init_translator("normal")
     tprint("unexpected_error_loading_config", error=e)
+    exit(1)
 
 # --- Bot Setup ---
 monitored: list = CONFIG.get('MONITORED_CHANNEL_IDS', [])
@@ -78,8 +79,8 @@ if CONFIG.get('USE_GEMINIAPI', False) and CONFIG.get('USE_OPENROUTER', False):
     tprint("error_both_geminiapi_openrouter")
     exit(1)
 
-intents = Intents.default() | Intents.message_content 
-# members NOT needed
+intents = Intents.default() | Intents.message_content
+# members n ot needed
 client = commands.Bot(intents=intents)
 
 chatbotmodule = None
@@ -196,7 +197,6 @@ def read_info_from_image_stealth(image: Image.Image):
     """Try and read stealth PNGInfo"""
     width, height = image.size
     pixels = image.load()
-
     has_alpha = True if image.mode == "RGBA" else False
     mode = None
     compressed = False
@@ -210,6 +210,9 @@ def read_info_from_image_stealth(image: Image.Image):
     reading_param_len = False
     reading_param = False
     read_end = False
+    if not has_alpha:
+        # why bother
+        return None
     for x in range(width):
         for y in range(height):
             if has_alpha:
@@ -635,12 +638,15 @@ async def process_and_display_metadata(
 
 
 # --- Gradio Prediction ---
-async def predict_prompt_task(user, member_color: discord.Color, attachment: Attachment):
+async def predict_prompt_task(user_id: int, member_color: discord.Color, attachment: Attachment, guild_id: int):
     """Task to predict prompt using Gradio and send to user DMs."""
     if not GRADCL:
         tprint("gradio_client_not_configured")
         # Optionally notify user DM?
         return
+
+    guild = client.get_guild(guild_id)
+    user = guild.get_member(user_id) if guild else None
 
     if not user:
         tprint("cannot_find_user_for_prediction", user_id=user_id)
@@ -806,7 +812,6 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
                     await message.delete() # Delete the bot's own message
             except Exception as e:
                 tprint("error_deleting_message_in_dm", error=e)
-    
     thread_parent = False
     if payload.member.bot or not payload.guild_id or payload.channel_id not in monitored:
         channel = client.get_channel(payload.channel_id)
@@ -862,12 +867,13 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
         # Create a task for each valid attachment to predict in parallel
         tasks = [
             asyncio.create_task(
-                predict_prompt_task(client.get_guild(payload.guild_id).get_member(payload.user_id), payload.member.color, attachment)
+                predict_prompt_task(payload.user_id, payload.member.color, attachment, payload.guild_id)
             ) for attachment in valid_attachments
         ]
         # Notify user maybe?
         try:
-            user_dm = await client.get_guild(payload.guild_id).get_member(payload.user_id).create_dm()
+            guild = client.get_guild(payload.guild_id)
+            user_dm = await guild.get_member(payload.user_id).create_dm()
             await user_dm.send(f"✨ Attempting to predict prompts for {len(tasks)} image(s) from the message...")
         except Exception: pass # Ignore if DM fails
         # Tasks run in background, no need to await here usually
@@ -876,7 +882,8 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
 
     # Handle Metadata Request
     if is_metadata_request:
-        user = client.get_guild(payload.guild_id).get_member(payload.user_id)
+        guild = client.get_guild(payload.guild_id)
+        user = guild.get_member(payload.user_id) if guild else None
         if not user: return # Should not happen
 
         try:
@@ -1237,7 +1244,6 @@ async def formatted_params_dm(ctx: ApplicationContext, message: Message):
     metadata_found = None
     first_attachment = None
     error_message = "No attachments with readable metadata found." # Default error
-
     # Find the first attachment with metadata
     for attachment in message.attachments:
         metadata, error = await read_attachment_metadata(attachment)
